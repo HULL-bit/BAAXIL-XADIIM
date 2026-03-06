@@ -1,4 +1,4 @@
-# Plateforme Ahibahil Khadim
+# BAAXIL-XADIIM — Plateforme Ahibahil Khadim
 
 Plateforme web de gestion pour la Ahibahil Khadim : interfaces par rôle (Administrateur, Membre, Jewrin), modules Informations, Finance, Culturelle (Kamil), Communication, Sociale, Conservatoire, Scientifique, Organisation.
 
@@ -118,5 +118,4 @@ Si vous voyez l’erreur **« column nb_lectures of relation culturelle_kamil do
 
 ## Licence
 
-Projet Ahibahil Khadim.
-
+Projet Ahibahil Khadim (BAAXIL-XADIIM).
