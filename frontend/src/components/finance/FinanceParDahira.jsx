@@ -29,7 +29,11 @@ const COLORS = { vert: '#2DA9E1', vertFonce: '#0F4D71' }
 export default function FinanceParDahira() {
   const { user } = useAuth()
   const isAdmin = user?.role === 'admin' || user?.role === 'jewrine_finance'
+  const [regroupements, setRegroupements] = useState([])
+  const [sections, setSections] = useState([])
   const [dahiras, setDahiras] = useState([])
+  const [selectedRegroupementId, setSelectedRegroupementId] = useState('')
+  const [selectedSectionId, setSelectedSectionId] = useState('')
   const [selectedDahiraId, setSelectedDahiraId] = useState('')
   const [membres, setMembres] = useState([])
   const [cotisations, setCotisations] = useState([])
@@ -49,22 +53,61 @@ export default function FinanceParDahira() {
   const [dahiraInDialog, setDahiraInDialog] = useState('')
   const [membresInDialog, setMembresInDialog] = useState([])
   const [dialogError, setDialogError] = useState('')
+  const [regInDialog, setRegInDialog] = useState('')
+  const [sectionInDialog, setSectionInDialog] = useState('')
+  const [sousSections, setSousSections] = useState([])
 
   useEffect(() => {
     if (!isAdmin) return
-    api.get('organisation/dahiras/').then(({ data }) => setDahiras(data.results || data || [])).catch(() => setDahiras([]))
+    Promise.all([
+      api.get('organisation/regroupements/').then(({ data }) => data.results || data || []),
+      api.get('organisation/sections/').then(({ data }) => data.results || data || []),
+      api.get('organisation/sous-sections/').then(({ data }) => data.results || data || []),
+      api.get('organisation/dahiras/').then(({ data }) => data.results || data || []),
+    ])
+      .then(([regs, secs, sousSecs, dah]) => {
+        setRegroupements(Array.isArray(regs) ? regs : [])
+        setSections(Array.isArray(secs) ? secs : [])
+        setSousSections(Array.isArray(sousSecs) ? sousSecs : [])
+        setDahiras(Array.isArray(dah) ? dah : [])
+      })
+      .catch(() => { setRegroupements([]); setSections([]); setSousSections([]); setDahiras([]) })
   }, [isAdmin])
 
+  const sectionsFiltered = selectedRegroupementId
+    ? sections.filter((s) => Number(s.regroupement) === Number(selectedRegroupementId))
+    : sections
+  const sousSectionIdsForSection = selectedSectionId
+    ? sousSections.filter((ss) => Number(ss.section) === Number(selectedSectionId)).map((ss) => ss.id)
+    : []
+  const sectionIdsForRegroupement = selectedRegroupementId
+    ? sections.filter((s) => Number(s.regroupement) === Number(selectedRegroupementId)).map((s) => s.id)
+    : []
+  const sousSectionIdsForRegroupement = sectionIdsForRegroupement.length
+    ? sousSections.filter((ss) => sectionIdsForRegroupement.includes(Number(ss.section))).map((ss) => ss.id)
+    : []
+  const dahirasFiltered = selectedSectionId
+    ? dahiras.filter((d) => sousSectionIdsForSection.includes(Number(d.sous_section)))
+    : selectedRegroupementId
+      ? dahiras.filter((d) => sousSectionIdsForRegroupement.includes(Number(d.sous_section)))
+      : dahiras
+
   useEffect(() => {
-    if (!selectedDahiraId) {
+    const hasFilter = selectedRegroupementId || selectedSectionId || selectedDahiraId
+    if (!hasFilter) {
       setMembres([])
       setCotisations([])
+      setLoading(false)
       return
     }
     setLoading(true)
+    const params = {}
+    if (selectedDahiraId) params.dahira = selectedDahiraId
+    else if (selectedSectionId) params.section = selectedSectionId
+    else if (selectedRegroupementId) params.regroupement = selectedRegroupementId
     Promise.all([
-      api.get('/auth/users/', { params: { dahira: selectedDahiraId } }).then(({ data }) => data.results || data || []),
-      api.get('/finance/cotisations/', { params: { dahira: selectedDahiraId } }).then(({ data }) => data.results || data || []),
+      api.get('/auth/users/', { params }).then(({ data }) => data.results || data || []),
+      api.get('/finance/cotisations/', { params }).then(({ data }) => data.results || data || []),
     ])
       .then(([users, cots]) => {
         setMembres(Array.isArray(users) ? users : [])
@@ -75,9 +118,21 @@ export default function FinanceParDahira() {
         setCotisations([])
       })
       .finally(() => setLoading(false))
-  }, [selectedDahiraId, isAdmin])
+  }, [selectedRegroupementId, selectedSectionId, selectedDahiraId, isAdmin])
 
+  const selectedRegroupement = regroupements.find((r) => r.id === Number(selectedRegroupementId))
+  const selectedSection = sections.find((s) => s.id === Number(selectedSectionId))
   const selectedDahira = dahiras.find((d) => d.id === Number(selectedDahiraId))
+
+  const handleRegroupementChange = (v) => {
+    setSelectedRegroupementId(v)
+    setSelectedSectionId('')
+    setSelectedDahiraId('')
+  }
+  const handleSectionChange = (v) => {
+    setSelectedSectionId(v)
+    setSelectedDahiraId('')
+  }
 
   const handleOpenAssign = () => {
     setDialogError('')
@@ -90,13 +145,10 @@ export default function FinanceParDahira() {
       montant: 1000,
     })
     setSelectedMemberIds({})
-    setDahiraInDialog(selectedDahiraId || '')
+    setRegInDialog('')
+    setSectionInDialog('')
+    setDahiraInDialog('')
     setMembresInDialog([])
-    if (selectedDahiraId) {
-      api.get('/auth/users/', { params: { dahira: selectedDahiraId } })
-        .then(({ data }) => setMembresInDialog(data.results || data || []))
-        .catch(() => setMembresInDialog([]))
-    }
     setOpenAssign(true)
   }
 
@@ -111,23 +163,70 @@ export default function FinanceParDahira() {
     setSelectedMemberIds(next)
   }
 
+  const sectionsFilteredInDialog = regInDialog
+    ? sections.filter((s) => Number(s.regroupement) === Number(regInDialog))
+    : sections
+  const sousSectionIdsInDialog = sectionInDialog
+    ? sousSections.filter((ss) => Number(ss.section) === Number(sectionInDialog)).map((ss) => ss.id)
+    : []
+  const dahirasFilteredInDialog = sectionInDialog
+    ? dahiras.filter((d) => sousSectionIdsInDialog.includes(Number(d.sous_section)))
+    : regInDialog
+      ? dahiras.filter((d) => {
+          const secIds = sections.filter((s) => Number(s.regroupement) === Number(regInDialog)).map((s) => s.id)
+          const ssIds = sousSections.filter((ss) => secIds.includes(Number(ss.section))).map((ss) => ss.id)
+          return ssIds.includes(Number(d.sous_section))
+        })
+      : dahiras
+
+  const loadMembresInDialog = (params) => {
+    if (!params.regroupement && !params.section && !params.dahira) {
+      setMembresInDialog([])
+      return
+    }
+    api.get('/auth/users/', { params })
+      .then(({ data }) => setMembresInDialog(data.results || data || []))
+      .catch(() => setMembresInDialog([]))
+  }
+
+  const handleRegInDialogChange = (v) => {
+    setRegInDialog(v)
+    setSectionInDialog('')
+    setDahiraInDialog('')
+    setSelectedMemberIds({})
+    if (v) loadMembresInDialog({ regroupement: v })
+    else setMembresInDialog([])
+  }
+  const handleSectionInDialogChange = (v) => {
+    setSectionInDialog(v)
+    setDahiraInDialog('')
+    setSelectedMemberIds({})
+    if (v) loadMembresInDialog({ section: v })
+    else setMembresInDialog([])
+  }
   const handleDahiraInDialogChange = (dahiraId) => {
     setDahiraInDialog(dahiraId)
     setSelectedMemberIds({})
-    if (dahiraId) {
-      api.get('/auth/users/', { params: { dahira: dahiraId } })
-        .then(({ data }) => setMembresInDialog(data.results || data || []))
-        .catch(() => setMembresInDialog([]))
-    } else {
-      setMembresInDialog([])
-    }
+    if (dahiraId) loadMembresInDialog({ dahira: dahiraId })
+    else setMembresInDialog([])
   }
+
+  const currentFilterLabel = selectedDahira
+    ? `Dahira ${selectedDahira.nom}`
+    : selectedSection
+      ? `Section ${selectedSection.nom}`
+      : selectedRegroupement
+        ? `Regroupement ${selectedRegroupement.nom}`
+        : null
+
+  const hasFilter = selectedRegroupementId || selectedSectionId || selectedDahiraId
+  const hasScopeInDialog = regInDialog || sectionInDialog || dahiraInDialog
 
   const handleCreateCotisations = async () => {
     setDialogError('')
     const ids = Object.entries(selectedMemberIds).filter(([, v]) => v).map(([id]) => Number(id))
-    if (!dahiraInDialog) {
-      setDialogError('Sélectionnez un dahira.')
+    if (!hasScopeInDialog) {
+      setDialogError('Choisissez au moins un regroupement, une section ou un dahira pour afficher la liste des membres.')
       return
     }
     if (ids.length === 0) {
@@ -152,10 +251,17 @@ export default function FinanceParDahira() {
       }
       setMessage({ type: 'success', text: `${ids.length} cotisation(s) créée(s).` })
       setOpenAssign(false)
-      const dahiraRef = dahiraInDialog || selectedDahiraId
-      if (dahiraRef) {
-        const { data } = await api.get('/finance/cotisations/', { params: { dahira: dahiraRef } })
-        setCotisations(data.results || data || [])
+      if (hasFilter) {
+        const p = {}
+        if (selectedDahiraId) p.dahira = selectedDahiraId
+        else if (selectedSectionId) p.section = selectedSectionId
+        else if (selectedRegroupementId) p.regroupement = selectedRegroupementId
+        const [cotsRes, usersRes] = await Promise.all([
+          api.get('/finance/cotisations/', { params: p }),
+          api.get('/auth/users/', { params: p }),
+        ])
+        setCotisations(cotsRes.data.results || cotsRes.data || [])
+        setMembres(usersRes.data.results || usersRes.data || [])
       }
     } catch (err) {
       const errMsg = err.response?.data?.detail || (typeof err.response?.data?.membre === 'object' ? err.response?.data?.membre?.[0] : null) || 'Erreur lors de la création.'
@@ -164,7 +270,6 @@ export default function FinanceParDahira() {
     } finally {
       setSaving(false)
     }
-    if (dahiraInDialog) setSelectedDahiraId(dahiraInDialog)
   }
 
   const MOIS = [
@@ -188,20 +293,46 @@ export default function FinanceParDahira() {
         <AccountBalance /> Finance par Dahira
       </Typography>
       <Typography variant="body2" sx={{ color: COLORS.vertFonce, mb: 3 }}>
-        Sélectionnez un dahira pour voir les membres, ajouter des mensualités ou assignations et consulter les cotisations.
+        Sélectionnez un regroupement, une section ou un dahira pour voir les membres et les cotisations. Pour ajouter des cotisations, cliquez sur le bouton puis choisissez un regroupement, une section ou un dahira et sélectionnez un ou plusieurs membres.
       </Typography>
 
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3, flexWrap: 'wrap' }}>
+        <TextField
+          select
+          label="Regroupement"
+          value={selectedRegroupementId}
+          onChange={(e) => handleRegroupementChange(e.target.value)}
+          size="small"
+          sx={{ minWidth: 200 }}
+        >
+          <MenuItem value="">— Tous —</MenuItem>
+          {regroupements.map((r) => (
+            <MenuItem key={r.id} value={r.id}>{r.nom}</MenuItem>
+          ))}
+        </TextField>
+        <TextField
+          select
+          label="Section"
+          value={selectedSectionId}
+          onChange={(e) => handleSectionChange(e.target.value)}
+          size="small"
+          sx={{ minWidth: 200 }}
+        >
+          <MenuItem value="">— Tous —</MenuItem>
+          {sectionsFiltered.map((s) => (
+            <MenuItem key={s.id} value={s.id}>{s.nom}</MenuItem>
+          ))}
+        </TextField>
         <TextField
           select
           label="Dahira"
           value={selectedDahiraId}
           onChange={(e) => setSelectedDahiraId(e.target.value)}
           size="small"
-          sx={{ minWidth: 320 }}
+          sx={{ minWidth: 220 }}
         >
-          <MenuItem value="">— Choisir un dahira —</MenuItem>
-          {dahiras.map((d) => (
+          <MenuItem value="">— Tous —</MenuItem>
+          {dahirasFiltered.map((d) => (
             <MenuItem key={d.id} value={d.id}>{d.nom}</MenuItem>
           ))}
         </TextField>
@@ -223,12 +354,14 @@ export default function FinanceParDahira() {
 
       {loading ? (
         <Box display="flex" justifyContent="center" py={4}><CircularProgress sx={{ color: COLORS.vert }} /></Box>
-      ) : selectedDahiraId ? (
+      ) : hasFilter ? (
         <>
           <Typography variant="h6" sx={{ color: COLORS.vertFonce, mb: 1 }}>
-            Dahira {selectedDahira?.nom} — {membres.length} membre(s)
+            {currentFilterLabel} — {membres.length} membre(s)
           </Typography>
-          <Typography variant="h6" sx={{ color: COLORS.vertFonce, mb: 1 }}>Cotisations de ce dahira</Typography>
+          <Typography variant="h6" sx={{ color: COLORS.vertFonce, mb: 1 }}>
+            Cotisations {selectedDahiraId ? 'de ce dahira' : selectedSectionId ? 'de cette section' : 'de ce regroupement'}
+          </Typography>
           <TableContainer component={Paper} sx={{ borderLeft: `4px solid ${COLORS.vert}`, borderRadius: 2 }}>
             <Table size="small">
               <TableHead>
@@ -258,7 +391,9 @@ export default function FinanceParDahira() {
             </Table>
           </TableContainer>
         </>
-      ) : null}
+      ) : (
+        <Typography color="text.secondary">Choisissez un regroupement, une section ou un dahira pour afficher les membres et cotisations.</Typography>
+      )}
 
       <Dialog open={openAssign} onClose={() => !saving && setOpenAssign(false)} maxWidth="md" fullWidth>
         <DialogTitle sx={{ bgcolor: COLORS.vert, color: '#fff' }}>Ajouter cotisations / assignations</DialogTitle>
@@ -266,20 +401,49 @@ export default function FinanceParDahira() {
           {dialogError && (
             <Alert severity="error" sx={{ mb: 2 }} onClose={() => setDialogError('')}>{dialogError}</Alert>
           )}
-          <Typography variant="subtitle2" sx={{ color: COLORS.vertFonce, mb: 1, fontWeight: 600 }}>1. Choisir le dahira et les membres</Typography>
-          <TextField
-            select
-            fullWidth
-            label="Dahira"
-            value={dahiraInDialog}
-            onChange={(e) => handleDahiraInDialogChange(e.target.value)}
-            sx={{ mb: 2 }}
-          >
-            <MenuItem value="">— Choisir un dahira —</MenuItem>
-            {dahiras.map((d) => (
-              <MenuItem key={d.id} value={d.id}>{d.nom}</MenuItem>
-            ))}
-          </TextField>
+          <Typography variant="subtitle2" sx={{ color: COLORS.vertFonce, mb: 1, fontWeight: 600 }}>1. Choisir un dahira (regroupement et section optionnels, pour filtrer)</Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2 }}>
+            <TextField
+              select
+              size="small"
+              label="Regroupement (optionnel)"
+              value={regInDialog}
+              onChange={(e) => handleRegInDialogChange(e.target.value)}
+              sx={{ minWidth: 200 }}
+            >
+              <MenuItem value="">— Optionnel —</MenuItem>
+              {regroupements.map((r) => (
+                <MenuItem key={r.id} value={r.id}>{r.nom}</MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              select
+              size="small"
+              label="Section (optionnel)"
+              value={sectionInDialog}
+              onChange={(e) => handleSectionInDialogChange(e.target.value)}
+              sx={{ minWidth: 200 }}
+            >
+              <MenuItem value="">— Optionnel —</MenuItem>
+              {sectionsFilteredInDialog.map((s) => (
+                <MenuItem key={s.id} value={s.id}>{s.nom}</MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              select
+              size="small"
+              label="Dahira"
+              value={dahiraInDialog}
+              onChange={(e) => handleDahiraInDialogChange(e.target.value)}
+              sx={{ minWidth: 200 }}
+            >
+              <MenuItem value="">— Choisir un dahira —</MenuItem>
+              {dahirasFilteredInDialog.map((d) => (
+                <MenuItem key={d.id} value={d.id}>{d.nom}</MenuItem>
+              ))}
+            </TextField>
+          </Box>
+          <Typography variant="subtitle2" sx={{ color: COLORS.vertFonce, mb: 1, fontWeight: 600 }}>2. Sélectionner un ou plusieurs membres (regroupement / section affichés automatiquement)</Typography>
           <Box sx={{ maxHeight: 220, overflow: 'auto', border: '1px solid', borderColor: 'divider', borderRadius: 1, mb: 2 }}>
             <Table size="small" stickyHeader>
               <TableHead>
@@ -292,15 +456,18 @@ export default function FinanceParDahira() {
                     />
                   </TableCell>
                   <TableCell>Membre</TableCell>
+                  <TableCell>Regroupement</TableCell>
+                  <TableCell>Section</TableCell>
+                  <TableCell>Dahira</TableCell>
                   <TableCell>Email</TableCell>
                   <TableCell>Téléphone</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {!dahiraInDialog ? (
-                  <TableRow><TableCell colSpan={4} align="center">Sélectionnez un dahira ci-dessus</TableCell></TableRow>
+                {!hasScopeInDialog ? (
+                  <TableRow><TableCell colSpan={7} align="center">Choisissez au moins un dahira ci-dessus (regroupement et section optionnels)</TableCell></TableRow>
                 ) : membresInDialog.length === 0 ? (
-                  <TableRow><TableCell colSpan={4} align="center">Aucun membre dans ce dahira</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} align="center">Aucun membre dans ce périmètre</TableCell></TableRow>
                 ) : (
                   membresInDialog.map((m) => (
                     <TableRow key={m.id}>
@@ -311,6 +478,9 @@ export default function FinanceParDahira() {
                         />
                       </TableCell>
                       <TableCell>{[m.first_name, m.last_name].filter(Boolean).join(' ') || m.username}</TableCell>
+                      <TableCell>{m.regroupement_nom || '—'}</TableCell>
+                      <TableCell>{m.section_nom || '—'}</TableCell>
+                      <TableCell>{m.dahira_nom || '—'}</TableCell>
                       <TableCell>{m.email}</TableCell>
                       <TableCell>{m.telephone || '—'}</TableCell>
                     </TableRow>
@@ -319,7 +489,7 @@ export default function FinanceParDahira() {
               </TableBody>
             </Table>
           </Box>
-          <Typography variant="subtitle2" sx={{ color: COLORS.vertFonce, mb: 1, fontWeight: 600 }}>2. Période et montant</Typography>
+          <Typography variant="subtitle2" sx={{ color: COLORS.vertFonce, mb: 1, fontWeight: 600 }}>3. Période et montant</Typography>
           <TextField
             select
             fullWidth

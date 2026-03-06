@@ -21,8 +21,11 @@ class CotisationMensuelleViewSet(viewsets.ModelViewSet):
         if not has_admin_access(self.request.user, 'finance'):
             qs = qs.filter(membre=self.request.user)
         else:
+            regroupement_id = self.request.query_params.get('regroupement')
             section_id = self.request.query_params.get('section')
             dahira_id = self.request.query_params.get('dahira')
+            if regroupement_id:
+                qs = qs.filter(membre__regroupement_id=regroupement_id)
             if section_id:
                 qs = qs.filter(membre__section_id=section_id)
             if dahira_id:
