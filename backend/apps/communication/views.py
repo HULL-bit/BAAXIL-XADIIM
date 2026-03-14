@@ -386,10 +386,17 @@ class NotificationViewSet(viewsets.ModelViewSet):
         return [IsAuthenticated()]
 
     def create(self, request, *args, **kwargs):
-        """Créer une notification : envoyée à tous les membres (utilisateurs actifs)."""
+        """
+        Créer une notification :
+        - si l'utilisateur est admin / staff : possibilité de cibler des destinataires précis
+          via une liste d'IDs 'destinataires' (sinon tous les membres actifs).
+        - sinon, fallback vers le comportement standard (NotificationSerializer).
+        """
         if not (request.user.is_staff or getattr(request.user, 'role', None) == 'admin'):
             return super().create(request, *args, **kwargs)
+
         from apps.accounts.models import CustomUser
+
         type_notification = request.data.get('type_notification', 'info')
         titre = request.data.get('titre', '')
         message = request.data.get('message', '')
@@ -399,13 +406,39 @@ class NotificationViewSet(viewsets.ModelViewSet):
                 {'detail': 'Titre et message requis.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        # Tous les utilisateurs actifs = tous les membres (bulk_create pour performance)
-        destinataires = list(CustomUser.objects.filter(is_active=True).values_list('id', flat=True))
+
+        # Destinataires (liste d'IDs). Obligatoire pour éviter de notifier des membres non sélectionnés.
+        brut = request.data.get('destinataires')
+        ids = []
+        if brut:
+            if isinstance(brut, (list, tuple)):
+                ids = brut
+            else:
+                # Peut venir sous forme de string unique ou CSV
+                if isinstance(brut, str):
+                    ids = [p for p in brut.replace(' ', '').split(',') if p]
+                else:
+                    ids = [brut]
+        try:
+            ids = [int(x) for x in ids if str(x).isdigit()]
+        except (TypeError, ValueError):
+            ids = []
+
+        if not ids:
+            return Response(
+                {'detail': 'Aucun destinataire sélectionné.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        destinataires_qs = CustomUser.objects.filter(is_active=True, id__in=ids)
+
+        destinataires = list(destinataires_qs.values_list('id', flat=True))
         if not destinataires:
             return Response(
                 {'detail': 'Aucun membre à notifier.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
         batch = [
             Notification(
                 utilisateur_id=uid,

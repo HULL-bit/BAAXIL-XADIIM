@@ -37,6 +37,7 @@ export default function FinanceParDahira() {
   const [selectedDahiraId, setSelectedDahiraId] = useState('')
   const [membres, setMembres] = useState([])
   const [cotisations, setCotisations] = useState([])
+  const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState({ type: '', text: '' })
   const [openAssign, setOpenAssign] = useState(false)
@@ -97,6 +98,7 @@ export default function FinanceParDahira() {
     if (!hasFilter) {
       setMembres([])
       setCotisations([])
+      setStats(null)
       setLoading(false)
       return
     }
@@ -118,6 +120,11 @@ export default function FinanceParDahira() {
         setCotisations([])
       })
       .finally(() => setLoading(false))
+
+    api
+      .get('/finance/cotisations/statistiques/', { params })
+      .then(({ data }) => setStats(data))
+      .catch(() => setStats(null))
   }, [selectedRegroupementId, selectedSectionId, selectedDahiraId, isAdmin])
 
   const selectedRegroupement = regroupements.find((r) => r.id === Number(selectedRegroupementId))
@@ -295,6 +302,29 @@ export default function FinanceParDahira() {
       <Typography variant="body2" sx={{ color: COLORS.vertFonce, mb: 3 }}>
         Sélectionnez un regroupement, une section ou un dahira pour voir les membres et les cotisations. Pour ajouter des cotisations, cliquez sur le bouton puis choisissez un regroupement, une section ou un dahira et sélectionnez un ou plusieurs membres.
       </Typography>
+
+      {stats && (
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
+          <Paper sx={{ p: 2, minWidth: 200, borderLeft: `3px solid ${COLORS.vert}`, borderRadius: 2 }}>
+            <Typography variant="subtitle2" color="text.secondary">Montant assigné</Typography>
+            <Typography variant="h6">{(stats.montant_total_assigne || 0).toLocaleString('fr-FR')} FCFA</Typography>
+          </Paper>
+          <Paper sx={{ p: 2, minWidth: 200, borderLeft: `3px solid ${COLORS.vert}`, borderRadius: 2 }}>
+            <Typography variant="subtitle2" color="text.secondary">Montant payé</Typography>
+            <Typography variant="h6">{(stats.montant_total_paye || 0).toLocaleString('fr-FR')} FCFA</Typography>
+          </Paper>
+          <Paper sx={{ p: 2, minWidth: 200, borderLeft: `3px solid ${COLORS.vert}`, borderRadius: 2 }}>
+            <Typography variant="subtitle2" color="text.secondary">% montant payé</Typography>
+            <Typography variant="h6">{stats.pourcentage_montant_paye?.toFixed?.(2) ?? stats.pourcentage_montant_paye}%</Typography>
+          </Paper>
+          <Paper sx={{ p: 2, minWidth: 200, borderLeft: `3px solid ${COLORS.vert}`, borderRadius: 2 }}>
+            <Typography variant="subtitle2" color="text.secondary">Cotisations payées / totales</Typography>
+            <Typography variant="h6">
+              {(stats.total_payees || 0).toLocaleString('fr-FR')} / {(stats.total_assignations || 0).toLocaleString('fr-FR')}
+            </Typography>
+          </Paper>
+        </Box>
+      )}
 
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3, flexWrap: 'wrap' }}>
         <TextField

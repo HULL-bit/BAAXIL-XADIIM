@@ -62,6 +62,7 @@ const sectionsAdmin = [
     title: 'Projet gestion membres',
     items: [
       { label: 'Gestion des membres', path: '/admin/membres', icon: <PeopleIcon /> },
+      { label: 'Admin organisation', path: '/organisation/admin', icon: <OrgIcon /> },
     ],
   },
   { title: 'Projet gestion informations', items: [{ label: 'Événements', path: '/informations/evenements', icon: <EventIcon /> }] },

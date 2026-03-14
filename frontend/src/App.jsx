@@ -20,6 +20,7 @@ import Notifications from './components/communication/Notifications'
 import ProjetsSociaux from './components/sociale/ProjetsSociaux'
 import Reunions from './components/organisation/Reunions'
 import SectionsDahiras from './components/organisation/SectionsDahiras'
+import AdminOrganisation from './components/organisation/AdminOrganisation'
 import Conservatoire from './components/conservatoire/Conservatoire'
 import Bibliotheque from './components/bibliotheque/Bibliotheque'
 import Cours from './components/scientifique/Cours'
@@ -84,6 +85,7 @@ function AppRoutes() {
         <Route path="sociale/projets" element={<ProjetsSociaux />} />
         <Route path="organisation/reunions" element={<Reunions />} />
         <Route path="organisation/sections-dahiras" element={<SectionsDahiras />} />
+        <Route path="organisation/admin" element={<ProtectedRoute roles={['admin']}><AdminOrganisation /></ProtectedRoute>} />
         <Route path="conservatoire" element={<Conservatoire />} />
         <Route path="bibliotheque" element={<Bibliotheque />} />
         <Route path="scientifique/cours" element={<Cours />} />

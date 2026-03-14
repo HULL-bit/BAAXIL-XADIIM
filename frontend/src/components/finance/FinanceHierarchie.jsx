@@ -59,13 +59,32 @@ export default function FinanceHierarchie() {
     { value: 9, label: 'Septembre' }, { value: 10, label: 'Octobre' }, { value: 11, label: 'Novembre' }, { value: 12, label: 'Décembre' },
   ]
 
+  const globalSummary = data && data.regroupements?.length
+    ? data.regroupements.reduce(
+        (acc, reg) => {
+          const mt = reg.montant_total || 0
+          const mp = reg.montant_paye || 0
+          const nb = reg.nb_cotisations || 0
+          acc.montant_total += mt
+          acc.montant_paye += mp
+          acc.nb_cotisations += nb
+          return acc
+        },
+        { montant_total: 0, montant_paye: 0, nb_cotisations: 0 },
+      )
+    : null
+
+  const pctGlobal = globalSummary && globalSummary.montant_total > 0
+    ? Math.round((globalSummary.montant_paye / globalSummary.montant_total) * 10000) / 100
+    : 0
+
   return (
     <Box>
       <Typography variant="h4" sx={{ color: COLORS.vert, fontWeight: 600, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
         <TrendingUp /> Synthèse finance hiérarchique
       </Typography>
       <Typography variant="body2" sx={{ color: COLORS.vertFonce, mb: 3 }}>
-        Regroupements → Sections → Sous-sections → Dahiras. Montants et % synchronisés à partir des cotisations.
+        Regroupements → Sections → Dahiras. Montants et % synchronisés à partir des cotisations.
       </Typography>
 
       <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap' }}>
@@ -95,6 +114,27 @@ export default function FinanceHierarchie() {
         </TextField>
       </Box>
 
+      {globalSummary && (
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
+          <Paper sx={{ p: 2, minWidth: 220, borderLeft: `3px solid ${COLORS.vert}`, borderRadius: 2 }}>
+            <Typography variant="subtitle2" color="text.secondary">Montant total assigné</Typography>
+            <Typography variant="h6">{globalSummary.montant_total.toLocaleString('fr-FR')} FCFA</Typography>
+          </Paper>
+          <Paper sx={{ p: 2, minWidth: 220, borderLeft: `3px solid ${COLORS.vert}`, borderRadius: 2 }}>
+            <Typography variant="subtitle2" color="text.secondary">Montant total payé</Typography>
+            <Typography variant="h6">{globalSummary.montant_paye.toLocaleString('fr-FR')} FCFA</Typography>
+          </Paper>
+          <Paper sx={{ p: 2, minWidth: 220, borderLeft: `3px solid ${COLORS.vert}`, borderRadius: 2 }}>
+            <Typography variant="subtitle2" color="text.secondary">% montant payé (global)</Typography>
+            <Typography variant="h6">{pctGlobal}%</Typography>
+          </Paper>
+          <Paper sx={{ p: 2, minWidth: 220, borderLeft: `3px solid ${COLORS.vert}`, borderRadius: 2 }}>
+            <Typography variant="subtitle2" color="text.secondary">Nombre de cotisations</Typography>
+            <Typography variant="h6">{globalSummary.nb_cotisations.toLocaleString('fr-FR')}</Typography>
+          </Paper>
+        </Box>
+      )}
+
       {loading ? (
         <Box display="flex" justifyContent="center" py={4}><CircularProgress sx={{ color: COLORS.vert }} /></Box>
       ) : !data || !data.regroupements?.length ? (
@@ -122,29 +162,31 @@ export default function FinanceHierarchie() {
               </Box>
             </AccordionSummary>
             <AccordionDetails sx={{ pt: 0 }}>
-              {reg.sections?.map((sec) => (
-                <Box key={sec.id} sx={{ mb: 2 }}>
-                  <Typography variant="subtitle1" sx={{ color: COLORS.vertFonce, fontWeight: 600, mt: 1 }}>
-                    Section {sec.nom} — {sec.montant_total?.toLocaleString('fr-FR')} FCFA · {sec.pct_paye}% payé
-                  </Typography>
-                  {sec.sous_sections?.map((ss) => (
-                    <Box key={ss.id} sx={{ pl: 2, mb: 1.5 }}>
-                      <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 500 }}>
-                        {ss.label} — {ss.montant_total?.toLocaleString('fr-FR')} FCFA · {ss.pct_paye}% payé
-                      </Typography>
-                      <Table size="small" sx={{ mt: 0.5 }}>
-                        <TableHead>
-                          <TableRow sx={{ bgcolor: `${COLORS.vert}10` }}>
-                            <TableCell>Dahira</TableCell>
-                            <TableCell align="right">Montant total</TableCell>
-                            <TableCell align="right">Payé</TableCell>
-                            <TableCell align="right">%</TableCell>
-                            <TableCell align="right">Cotisations</TableCell>
-                            <TableCell align="right">Membres</TableCell>
+              {reg.sections?.map((sec) => {
+                const dahirasSec = (sec.sous_sections || []).flatMap((ss) => ss.dahiras || [])
+                return (
+                  <Box key={sec.id} sx={{ mb: 2 }}>
+                    <Typography variant="subtitle1" sx={{ color: COLORS.vertFonce, fontWeight: 600, mt: 1 }}>
+                      Section {sec.nom} — {sec.montant_total?.toLocaleString('fr-FR')} FCFA · {sec.pct_paye}% payé
+                    </Typography>
+                    <Table size="small" sx={{ mt: 0.5, ml: 2 }}>
+                      <TableHead>
+                        <TableRow sx={{ bgcolor: `${COLORS.vert}10` }}>
+                          <TableCell>Dahira</TableCell>
+                          <TableCell align="right">Montant total</TableCell>
+                          <TableCell align="right">Payé</TableCell>
+                          <TableCell align="right">%</TableCell>
+                          <TableCell align="right">Cotisations</TableCell>
+                          <TableCell align="right">Membres</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {dahirasSec.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={6} align="center">Aucun dahira pour cette section</TableCell>
                           </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {(ss.dahiras || []).map((d) => (
+                        ) : (
+                          dahirasSec.map((d) => (
                             <TableRow key={d.id}>
                               <TableCell>{d.nom}</TableCell>
                               <TableCell align="right">{d.montant_total?.toLocaleString('fr-FR')} FCFA</TableCell>
@@ -153,13 +195,13 @@ export default function FinanceHierarchie() {
                               <TableCell align="right">{d.nb_cotisations}</TableCell>
                               <TableCell align="right">{d.nb_membres}</TableCell>
                             </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </Box>
-                  ))}
-                </Box>
-              ))}
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </Box>
+                )
+              })}
             </AccordionDetails>
           </Accordion>
         ))
