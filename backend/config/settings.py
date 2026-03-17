@@ -4,6 +4,14 @@ from datetime import timedelta
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Charge des variables depuis backend/.env si présent (non committé)
+try:
+    from dotenv import load_dotenv  # type: ignore
+
+    load_dotenv(BASE_DIR / ".env")
+except Exception:
+    pass
+
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-dev-key-change-in-production')
 
 DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
