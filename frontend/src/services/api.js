@@ -1,9 +1,12 @@
 import axios from 'axios'
 
+const API_ORIGIN = (import.meta.env.VITE_API_URL || 'https://baaxil-xadiim.onrender.com').replace(/\/$/, '')
+const API_BASE = `${API_ORIGIN}/api`
+
 const api = axios.create({
-  // En dev local, on pointe par défaut sur le backend Django local.
-  // En prod, on définira VITE_API_BASE_URL (ex : https://mon-backend/api).
-  baseURL:  'http://localhost:8000/api',
+  // En prod, on pointe par défaut sur le backend Render.
+  // Pour surcharger (ex: dev local), définir VITE_API_URL.
+  baseURL: API_BASE,
   headers: { 'Content-Type': 'application/json' },
 })
 
@@ -32,8 +35,7 @@ api.interceptors.response.use(
         localStorage.getItem('refresh')
       if (refresh) {
         try {
-          const base =  'http://localhost:8000/api'
-          const { data } = await axios.post(base + '/auth/token/refresh/', { refresh })
+          const { data } = await axios.post(API_BASE + '/auth/token/refresh/', { refresh })
           // Après refresh, on stocke en priorité dans sessionStorage
           if (typeof sessionStorage !== 'undefined') {
             sessionStorage.setItem('access', data.access)
