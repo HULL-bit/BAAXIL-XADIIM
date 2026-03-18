@@ -76,7 +76,6 @@ export default function Notifications() {
     const errors = {}
     if (!form.titre) errors.titre = 'Titre requis.'
     if (!form.message) errors.message = 'Message requis.'
-    if (destinataires.length === 0) errors.destinataires = 'Sélectionnez au moins un destinataire.'
     setFieldErrors(errors)
     if (Object.keys(errors).length > 0) {
       setMessage({ type: 'error', text: 'Veuillez corriger les champs en rouge.' })
@@ -203,6 +202,7 @@ export default function Notifications() {
                 onChange={(e) => setDestinataires(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
                 SelectProps={{
                   multiple: true,
+                  onOpen: () => { if (membres.length === 0 && !loadingMembres) loadMembres() },
                   renderValue: (selected) => {
                     if (!selected || selected.length === 0) return 'Tous les membres'
                     const labels = membres
@@ -212,7 +212,6 @@ export default function Notifications() {
                   },
                 }}
                 helperText={loadingMembres ? 'Chargement des membres…' : 'Laissez vide pour envoyer à tous les membres.'}
-                onOpen={() => { if (membres.length === 0 && !loadingMembres) loadMembres() }}
               >
                 {membres.map((m) => {
                   const label = m.full_name || `${m.first_name || ''} ${m.last_name || ''}`.trim() || m.email || `Membre #${m.id}`

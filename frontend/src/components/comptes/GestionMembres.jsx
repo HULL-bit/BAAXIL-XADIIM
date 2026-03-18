@@ -21,8 +21,9 @@ import {
   MenuItem,
   Alert,
   CircularProgress,
+  InputAdornment,
 } from '@mui/material'
-import { Add, Edit, Delete } from '@mui/icons-material'
+import { Add, Edit, Delete, Visibility, VisibilityOff } from '@mui/icons-material'
 import api from '../../services/api'
 import { getMediaUrl } from '../../services/media'
 
@@ -47,7 +48,6 @@ const initialForm = {
   role: 'membre',
   telephone: '',
   adresse: '',
-  numero_wave: '',
   sexe: '',
   profession: '',
   categorie: 'professionnel', // Par défaut
@@ -55,7 +55,6 @@ const initialForm = {
   est_actif: true,
   regroupement: '',
   section: '',
-  sous_section: '',
   dahira: '',
   groupe_sanguin: '',
 }
@@ -78,6 +77,8 @@ export default function GestionMembres() {
   const [sectionFilter, setSectionFilter] = useState('')
   const [dahiraFilter, setDahiraFilter] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
+  const [showUsername, setShowUsername] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const [regroupements, setRegroupements] = useState([])
   const [sections, setSections] = useState([])
   const [sousSections, setSousSections] = useState([])
@@ -145,7 +146,6 @@ export default function GestionMembres() {
       role: u.role || 'membre',
       telephone: u.telephone || '',
       adresse: u.adresse || '',
-      numero_wave: u.numero_wave || '',
       sexe: u.sexe || '',
       profession: u.profession || '',
       categorie: normaliseCategorie(u.categorie),
@@ -153,7 +153,6 @@ export default function GestionMembres() {
       est_actif: u.est_actif ?? true,
       regroupement: (typeof u.regroupement === 'object' ? u.regroupement?.id : u.regroupement) ?? '',
       section: (typeof u.section === 'object' ? u.section?.id : u.section) ?? '',
-      sous_section: (typeof u.sous_section === 'object' ? u.sous_section?.id : u.sous_section) ?? '',
       dahira: (typeof u.dahira === 'object' ? u.dahira?.id : u.dahira) ?? '',
       groupe_sanguin: u.groupe_sanguin || '',
     })
@@ -199,7 +198,6 @@ export default function GestionMembres() {
         categorie: categorieValide,
         regroupement: toId(form.regroupement),
         section: toId(form.section),
-        sous_section: toId(form.sous_section),
         dahira: toId(form.dahira),
       }
       if (editingId) {
@@ -512,6 +510,7 @@ export default function GestionMembres() {
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
             <TextField
               label="Identifiant (username)"
+              type={showUsername ? 'text' : 'password'}
               value={form.username}
               onChange={(e) => {
                 setForm((f) => ({ ...f, username: e.target.value }))
@@ -522,6 +521,19 @@ export default function GestionMembres() {
               fullWidth
               error={!!fieldErrors.username}
               helperText={fieldErrors.username || ''}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      aria-label={showUsername ? "Masquer l'identifiant" : "Afficher l'identifiant"}
+                      onClick={() => setShowUsername((v) => !v)}
+                      edge="end"
+                    >
+                      {showUsername ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
             />
             <TextField
               label="Email"
@@ -538,7 +550,7 @@ export default function GestionMembres() {
             />
             <TextField
               label={editingId ? 'Nouveau mot de passe (laisser vide pour ne pas changer)' : 'Mot de passe'}
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               value={form.password}
               onChange={(e) => {
                 setForm((f) => ({ ...f, password: e.target.value }))
@@ -548,6 +560,19 @@ export default function GestionMembres() {
               fullWidth
               error={!!fieldErrors.password}
               helperText={fieldErrors.password || (!editingId ? 'Minimum 8 caractères' : '')}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                      onClick={() => setShowPassword((v) => !v)}
+                      edge="end"
+                    >
+                      {showPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
             />
             <TextField label="Prénom" value={form.first_name} onChange={(e) => setForm((f) => ({ ...f, first_name: e.target.value }))} fullWidth />
             <TextField label="Nom" value={form.last_name} onChange={(e) => setForm((f) => ({ ...f, last_name: e.target.value }))} fullWidth />
@@ -584,7 +609,6 @@ export default function GestionMembres() {
             </TextField>
             <TextField label="Profession" value={form.profession} onChange={(e) => setForm((f) => ({ ...f, profession: e.target.value }))} fullWidth />
             <TextField label="Numéro de carte" value={form.numero_carte} onChange={(e) => setForm((f) => ({ ...f, numero_carte: e.target.value }))} fullWidth />
-            <TextField label="Numéro Wave" value={form.numero_wave} onChange={(e) => setForm((f) => ({ ...f, numero_wave: e.target.value }))} fullWidth />
             <TextField label="Adresse" value={form.adresse} onChange={(e) => setForm((f) => ({ ...f, adresse: e.target.value }))} multiline rows={2} fullWidth />
             <TextField
               select
@@ -617,7 +641,6 @@ export default function GestionMembres() {
                 ...f,
                 regroupement: e.target.value || '',
                 section: '',
-                sous_section: '',
                 dahira: '',
               }))}
               fullWidth
@@ -634,7 +657,6 @@ export default function GestionMembres() {
               onChange={(e) => setForm((f) => ({
                 ...f,
                 section: e.target.value || '',
-                sous_section: '',
                 dahira: '',
               }))}
               fullWidth
@@ -648,24 +670,6 @@ export default function GestionMembres() {
             </TextField>
             <TextField
               select
-              label="Sous-section"
-              value={form.sous_section || ''}
-              onChange={(e) => setForm((f) => ({
-                ...f,
-                sous_section: e.target.value || '',
-                dahira: '',
-              }))}
-              fullWidth
-            >
-              <MenuItem value="">Aucune</MenuItem>
-              {sousSections
-                .filter((ss) => !form.section || String(ss.section) === String(form.section))
-                .map((ss) => (
-                  <MenuItem key={ss.id} value={ss.id}>{ss.label || ss.nom || `Sous-section ${ss.id}`}</MenuItem>
-                ))}
-            </TextField>
-            <TextField
-              select
               label="Dahira"
               value={form.dahira || ''}
               onChange={(e) => setForm((f) => ({ ...f, dahira: e.target.value || '' }))}
@@ -673,7 +677,13 @@ export default function GestionMembres() {
             >
               <MenuItem value="">Aucun</MenuItem>
               {dahiras
-                .filter((d) => !form.sous_section || String(d.sous_section) === String(form.sous_section))
+                .filter((d) => {
+                  if (!form.section) return true
+                  const ssIds = sousSections
+                    .filter((ss) => String(ss.section) === String(form.section))
+                    .map((ss) => String(ss.id))
+                  return ssIds.includes(String(d.sous_section))
+                })
                 .map((d) => (
                   <MenuItem key={d.id} value={d.id}>{d.nom || d.label || `Dahira ${d.id}`}</MenuItem>
                 ))}

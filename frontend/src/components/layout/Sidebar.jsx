@@ -12,7 +12,7 @@ import {
   useTheme,
   SwipeableDrawer,
 } from '@mui/material'
-import { ChevronLeft, ChevronRight, Home as HomeIcon } from '@mui/icons-material'
+import { ChevronLeft, ChevronRight, Close, Home as HomeIcon } from '@mui/icons-material'
 import {
   Dashboard as DashboardIcon,
   Event as EventIcon,
@@ -48,6 +48,7 @@ const COLORS = {
 
 const SIDEBAR_WIDTH = 280
 const SIDEBAR_COLLAPSED = 72
+const SIDEBAR_MOBILE_WIDTH = 240
 
 // Menus regroupés par section (admin, membre, jewrin)
 const sectionsAdmin = [
@@ -292,6 +293,7 @@ export default function Sidebar({ open, onClose, collapsed, onToggleCollapse }) 
       user.role.toLowerCase().startsWith('jewrine_'))
   const sections = user?.role === 'admin' ? sectionsAdmin : isJewrine ? sectionsJewrin : sectionsMembre
   const width = collapsed ? SIDEBAR_COLLAPSED : SIDEBAR_WIDTH
+  const mobileWidth = Math.min(SIDEBAR_MOBILE_WIDTH, Math.round((typeof window !== 'undefined' ? window.innerWidth : 360) * 0.8))
 
   const sidebarContent = (
     <Box
@@ -309,9 +311,9 @@ export default function Sidebar({ open, onClose, collapsed, onToggleCollapse }) 
       {/* En-tête sidebar — logo visible quand le menu est ouvert */}
       <Box
         sx={{
-          p: collapsed ? 1.5 : 2,
+          p: isMobile ? 1.5 : collapsed ? 1.5 : 2,
           borderBottom: `1px solid ${COLORS.vert}66`,
-          minHeight: 80,
+          minHeight: isMobile ? 72 : 80,
           display: 'flex',
           flexDirection: collapsed ? 'column' : 'row',
           alignItems: 'center',
@@ -343,6 +345,21 @@ export default function Sidebar({ open, onClose, collapsed, onToggleCollapse }) 
               {user?.role_display || user?.role}
             </Typography>
           </Box>
+        )}
+        {isMobile && (
+          <Tooltip title="Fermer" placement="left" arrow>
+            <IconButton
+              onClick={onClose}
+              size="small"
+              sx={{
+                color: COLORS.vert,
+                transition: 'all 0.25s ease',
+                '&:hover': { backgroundColor: `${COLORS.vert}30`, transform: 'scale(1.06)' },
+              }}
+            >
+              <Close />
+            </IconButton>
+          </Tooltip>
         )}
         {!isMobile && onToggleCollapse && (
           <Tooltip title={collapsed ? 'Ouvrir le menu' : 'Réduire le menu'} placement="right" arrow>
@@ -377,8 +394,8 @@ export default function Sidebar({ open, onClose, collapsed, onToggleCollapse }) 
         onOpen={() => {}}
         sx={{
           '& .MuiDrawer-paper': {
-            width: SIDEBAR_WIDTH,
-            maxWidth: '85vw',
+            width: mobileWidth,
+            maxWidth: '80vw',
             boxSizing: 'border-box',
             background: COLORS.beigeClair,
             borderRight: `2px solid ${COLORS.vert}`,

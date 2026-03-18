@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from datetime import timedelta
+from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -75,33 +76,26 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
-# Base locale : SQLite3 (prioritaire en développement).
-# En production, définir USE_SQLITE_LOCAL=false et DATABASE_URL pour PostgreSQL.
-USE_SQLITE_LOCAL = os.environ.get('USE_SQLITE_LOCAL', 'true').lower() == 'true'
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
-if USE_SQLITE_LOCAL or not DATABASE_URL:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
+if not DATABASE_URL:
+    raise ImproperlyConfigured('DATABASE_URL est requis.')
+
+import urllib.parse as urlparse
+
+urlparse.uses_netloc.append('postgres')
+url = urlparse.urlparse(DATABASE_URL)
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': url.path[1:],
+        'USER': url.username,
+        'PASSWORD': url.password,
+        'HOST': url.hostname,
+        'PORT': url.port or 5432,
+        'OPTIONS': {'sslmode': 'require'},
     }
-else:
-    import urllib.parse as urlparse
-    urlparse.uses_netloc.append('postgres')
-    url = urlparse.urlparse(DATABASE_URL)
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': url.path[1:],
-            'USER': url.username,
-            'PASSWORD': url.password,
-            'HOST': url.hostname,
-            'PORT': url.port or 5432,
-            'OPTIONS': {'sslmode': 'require'},
-        }
-    }
+}
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},

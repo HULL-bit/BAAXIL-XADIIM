@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, Link as RouterLink } from 'react-router-dom'
-import { Box, Card, CardContent, TextField, Button, Typography, Alert, MenuItem, Link } from '@mui/material'
+import { Box, Card, CardContent, TextField, Button, Typography, Alert, MenuItem, Link, IconButton, InputAdornment } from '@mui/material'
+import { Visibility, VisibilityOff } from '@mui/icons-material'
 import logo from '/logo.jpeg'
 import { useAuth } from '../../context/AuthContext'
 import api from '../../services/api'
@@ -21,15 +22,16 @@ export default function Register() {
     sexe: '',
     profession: '',
     categorie: '',
-    numero_wave: '',
     numero_carte: '',
     regroupement: '',
     section: '',
-    sous_section: '',
     dahira: '',
     specialite: '',
     biographie: '',
   })
+  const [showUsername, setShowUsername] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showPasswordConfirmation, setShowPasswordConfirmation] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [fieldErrors, setFieldErrors] = useState({})
@@ -112,7 +114,6 @@ export default function Register() {
         ...rawPayload,
         regroupement: toId(rawPayload.regroupement),
         section: toId(rawPayload.section),
-        sous_section: toId(rawPayload.sous_section),
         dahira: toId(rawPayload.dahira),
       }
       await register(payload)
@@ -173,6 +174,7 @@ export default function Register() {
             <TextField
               fullWidth
               name="username"
+              type={showUsername ? 'text' : 'password'}
               label="Nom d'utilisateur"
               value={form.username}
               onChange={handleChange}
@@ -181,6 +183,19 @@ export default function Register() {
               sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
               error={!!fieldErrors.username}
               helperText={fieldErrors.username || ''}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      aria-label={showUsername ? "Masquer le nom d'utilisateur" : "Afficher le nom d'utilisateur"}
+                      onClick={() => setShowUsername((v) => !v)}
+                      edge="end"
+                    >
+                      {showUsername ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
             />
             <TextField
               fullWidth
@@ -198,7 +213,7 @@ export default function Register() {
             <TextField
               fullWidth
               name="password"
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               label="Mot de passe"
               value={form.password}
               onChange={handleChange}
@@ -207,11 +222,24 @@ export default function Register() {
               sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
               error={!!fieldErrors.password}
               helperText={fieldErrors.password || 'Minimum 8 caractères'}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                      onClick={() => setShowPassword((v) => !v)}
+                      edge="end"
+                    >
+                      {showPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
             />
             <TextField
               fullWidth
               name="password_confirmation"
-              type="password"
+              type={showPasswordConfirmation ? 'text' : 'password'}
               label="Confirmation du mot de passe"
               value={form.password_confirmation}
               onChange={handleChange}
@@ -220,6 +248,19 @@ export default function Register() {
               sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
               error={!!fieldErrors.password_confirmation}
               helperText={fieldErrors.password_confirmation || ''}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      aria-label={showPasswordConfirmation ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                      onClick={() => setShowPasswordConfirmation((v) => !v)}
+                      edge="end"
+                    >
+                      {showPasswordConfirmation ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
             />
             <TextField fullWidth name="first_name" label="Prénom" value={form.first_name} onChange={handleChange} margin="dense" sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
             <TextField fullWidth name="last_name" label="Nom" value={form.last_name} onChange={handleChange} margin="dense" sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
@@ -230,15 +271,6 @@ export default function Register() {
               name="numero_carte"
               label="Numéro de carte membre"
               value={form.numero_carte}
-              onChange={handleChange}
-              margin="dense"
-              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-            />
-            <TextField
-              fullWidth
-              name="numero_wave"
-              label="Numéro Wave"
-              value={form.numero_wave}
               onChange={handleChange}
               margin="dense"
               sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
@@ -311,7 +343,7 @@ export default function Register() {
               onChange={(e) =>
                 handleChange({
                   target: { name: 'regroupement', value: e.target.value || '' },
-                }) || setForm((f) => ({ ...f, section: '', sous_section: '', dahira: '' }))
+                }) || setForm((f) => ({ ...f, section: '', dahira: '' }))
               }
               margin="dense"
               sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
@@ -332,7 +364,7 @@ export default function Register() {
               onChange={(e) =>
                 handleChange({
                   target: { name: 'section', value: e.target.value || '' },
-                }) || setForm((f) => ({ ...f, sous_section: '', dahira: '' }))
+                }) || setForm((f) => ({ ...f, dahira: '' }))
               }
               margin="dense"
               sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
@@ -348,29 +380,6 @@ export default function Register() {
             </TextField>
             <TextField
               fullWidth
-              name="sous_section"
-              select
-              label="Sous-section"
-              value={form.sous_section}
-              onChange={(e) =>
-                handleChange({
-                  target: { name: 'sous_section', value: e.target.value || '' },
-                }) || setForm((f) => ({ ...f, dahira: '' }))
-              }
-              margin="dense"
-              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-            >
-              <MenuItem value="">— Aucune —</MenuItem>
-              {sousSections
-                .filter((ss) => !form.section || String(ss.section) === String(form.section))
-                .map((ss) => (
-                  <MenuItem key={ss.id} value={ss.id}>
-                    {ss.label || ss.nom || `Sous-section ${ss.id}`}
-                  </MenuItem>
-                ))}
-            </TextField>
-            <TextField
-              fullWidth
               name="dahira"
               select
               label="Dahira"
@@ -381,7 +390,13 @@ export default function Register() {
             >
               <MenuItem value="">— Aucun —</MenuItem>
               {dahiras
-                .filter((d) => !form.sous_section || String(d.sous_section) === String(form.sous_section))
+                .filter((d) => {
+                  if (!form.section) return true
+                  const ssIds = sousSections
+                    .filter((ss) => String(ss.section) === String(form.section))
+                    .map((ss) => String(ss.id))
+                  return ssIds.includes(String(d.sous_section))
+                })
                 .map((d) => (
                   <MenuItem key={d.id} value={d.id}>
                     {d.nom || d.label || `Dahira ${d.id}`}

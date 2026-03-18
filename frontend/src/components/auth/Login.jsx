@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, Link as RouterLink } from 'react-router-dom'
-import { Box, Card, CardContent, TextField, Button, Typography, Alert, Link } from '@mui/material'
+import { Box, Card, CardContent, TextField, Button, Typography, Alert, Link, IconButton, InputAdornment } from '@mui/material'
+import { Visibility, VisibilityOff } from '@mui/icons-material'
 import logo from '/logo.jpeg'
 import { useAuth } from '../../context/AuthContext'
 
@@ -9,6 +10,8 @@ export default function Login() {
   const { login } = useAuth()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [showUsername, setShowUsername] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -75,6 +78,7 @@ export default function Login() {
           <form onSubmit={handleSubmit}>
             <TextField
               fullWidth
+              type={showUsername ? 'text' : 'password'}
               label="Nom d'utilisateur"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
@@ -82,10 +86,23 @@ export default function Login() {
               required
               autoComplete="username"
               sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      aria-label={showUsername ? "Masquer le nom d'utilisateur" : "Afficher le nom d'utilisateur"}
+                      onClick={() => setShowUsername((v) => !v)}
+                      edge="end"
+                    >
+                      {showUsername ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
             />
             <TextField
               fullWidth
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               label="Mot de passe"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -93,6 +110,19 @@ export default function Login() {
               required
               autoComplete="current-password"
               sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                      onClick={() => setShowPassword((v) => !v)}
+                      edge="end"
+                    >
+                      {showPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
             />
             <Button
               type="submit"
