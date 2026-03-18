@@ -8,6 +8,7 @@ router.register(r'evenements', views.EvenementViewSet)
 router.register(r'publications', views.PublicationViewSet)
 router.register(r'annonces', views.AnnonceViewSet)
 router.register(r'galerie', views.GalerieMediaViewSet)
+router.register(r'news', views.NewsViewSet, basename='news')
 
 urlpatterns = [
     path('informations/', include(router.urls)),

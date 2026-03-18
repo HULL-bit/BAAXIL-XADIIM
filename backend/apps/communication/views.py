@@ -389,7 +389,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
         """
         Créer une notification :
         - si l'utilisateur est admin / staff : possibilité de cibler des destinataires précis
-          via une liste d'IDs 'destinataires' (sinon tous les membres actifs).
+          via une liste d'IDs 'destinataires' (si vide/absent, tous les utilisateurs actifs).
         - sinon, fallback vers le comportement standard (NotificationSerializer).
         """
         if not (request.user.is_staff or getattr(request.user, 'role', None) == 'admin'):
@@ -407,7 +407,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Destinataires (liste d'IDs). Obligatoire pour éviter de notifier des membres non sélectionnés.
+        # Destinataires (liste d'IDs). Si absent/vide -> tous les utilisateurs actifs.
         brut = request.data.get('destinataires')
         ids = []
         if brut:
@@ -424,13 +424,10 @@ class NotificationViewSet(viewsets.ModelViewSet):
         except (TypeError, ValueError):
             ids = []
 
-        if not ids:
-            return Response(
-                {'detail': 'Aucun destinataire sélectionné.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        destinataires_qs = CustomUser.objects.filter(is_active=True, id__in=ids)
+        if ids:
+            destinataires_qs = CustomUser.objects.filter(is_active=True, id__in=ids)
+        else:
+            destinataires_qs = CustomUser.objects.filter(is_active=True)
 
         destinataires = list(destinataires_qs.values_list('id', flat=True))
         if not destinataires:

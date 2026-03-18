@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Groupe, Evenement, ParticipationEvenement, Publication, Annonce, GalerieMedia
+from .models import Groupe, Evenement, ParticipationEvenement, Publication, Annonce, GalerieMedia, News, NewsLike, NewsSave, NewsComment
 
 @admin.register(Groupe)
 class GroupeAdmin(admin.ModelAdmin):
@@ -20,3 +20,8 @@ class AnnonceAdmin(admin.ModelAdmin):
 
 admin.site.register(ParticipationEvenement)
 admin.site.register(GalerieMedia)
+
+admin.site.register(News)
+admin.site.register(NewsLike)
+admin.site.register(NewsSave)
+admin.site.register(NewsComment)

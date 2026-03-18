@@ -112,8 +112,11 @@ USE_TZ = True
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-MEDIA_URL = 'media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+# Médias (uploads)
+# Sur Render, le filesystem est éphémère sauf si vous montez un Disk.
+# Configurez MEDIA_ROOT_PATH=/var/data/media (ou autre mount path) pour persister.
+MEDIA_URL = os.environ.get('MEDIA_URL', 'media/')
+MEDIA_ROOT = Path(os.environ.get('MEDIA_ROOT_PATH', BASE_DIR / 'media'))
 
 # Stockage des médias : S3 (persistant après redéploiement) si configuré, sinon disque local
 USE_S3_MEDIA = bool(os.environ.get('AWS_STORAGE_BUCKET_NAME'))

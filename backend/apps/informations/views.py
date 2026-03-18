@@ -2,9 +2,31 @@ from rest_framework import generics, viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
+from django.db import models
 
-from .models import Groupe, Evenement, ParticipationEvenement, Publication, Annonce, GalerieMedia
-from .serializers import GroupeSerializer, EvenementSerializer, ParticipationEvenementSerializer, PublicationSerializer, AnnonceSerializer, GalerieMediaSerializer
+from apps.accounts.permissions import IsAdminOrJewrinCommunication
+from .models import (
+    Groupe,
+    Evenement,
+    ParticipationEvenement,
+    Publication,
+    Annonce,
+    GalerieMedia,
+    News,
+    NewsLike,
+    NewsSave,
+    NewsComment,
+)
+from .serializers import (
+    GroupeSerializer,
+    EvenementSerializer,
+    ParticipationEvenementSerializer,
+    PublicationSerializer,
+    AnnonceSerializer,
+    GalerieMediaSerializer,
+    NewsSerializer,
+    NewsCommentSerializer,
+)
 
 
 class GroupeViewSet(viewsets.ModelViewSet):
@@ -103,3 +125,69 @@ class GalerieMediaViewSet(viewsets.ModelViewSet):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             return [IsAdminUser()]
         return [IsAuthenticated()]
+
+
+class NewsViewSet(viewsets.ModelViewSet):
+    serializer_class = NewsSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = News.objects.select_related('auteur').all().order_by('-date_creation')
+        if not IsAdminOrJewrinCommunication().has_permission(self.request, self):
+            qs = qs.filter(est_publiee=True)
+        user = self.request.user
+        return qs.annotate(
+            likes_count=models.Count('likes', distinct=True),
+            comments_count=models.Count('comments', distinct=True),
+            saves_count=models.Count('saves', distinct=True),
+            liked=models.Exists(NewsLike.objects.filter(news=models.OuterRef('pk'), user=user)),
+            saved=models.Exists(NewsSave.objects.filter(news=models.OuterRef('pk'), user=user)),
+        )
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAdminOrJewrinCommunication()]
+        return [IsAuthenticated()]
+
+    def perform_create(self, serializer):
+        serializer.save(auteur=self.request.user)
+
+    @action(detail=True, methods=['post'])
+    def like(self, request, pk=None):
+        news = self.get_object()
+        NewsLike.objects.get_or_create(news=news, user=request.user)
+        return Response({'detail': 'ok'})
+
+    @action(detail=True, methods=['post'])
+    def unlike(self, request, pk=None):
+        news = self.get_object()
+        NewsLike.objects.filter(news=news, user=request.user).delete()
+        return Response({'detail': 'ok'})
+
+    @action(detail=True, methods=['post'])
+    def save(self, request, pk=None):
+        news = self.get_object()
+        NewsSave.objects.get_or_create(news=news, user=request.user)
+        return Response({'detail': 'ok'})
+
+    @action(detail=True, methods=['post'])
+    def unsave(self, request, pk=None):
+        news = self.get_object()
+        NewsSave.objects.filter(news=news, user=request.user).delete()
+        return Response({'detail': 'ok'})
+
+    @action(detail=True, methods=['get'])
+    def comments(self, request, pk=None):
+        news = self.get_object()
+        qs = NewsComment.objects.filter(news=news).select_related('user')
+        ser = NewsCommentSerializer(qs, many=True)
+        return Response(ser.data)
+
+    @action(detail=True, methods=['post'])
+    def add_comment(self, request, pk=None):
+        news = self.get_object()
+        txt = (request.data.get('commentaire') or '').strip()
+        if not txt:
+            return Response({'detail': 'Commentaire requis.'}, status=status.HTTP_400_BAD_REQUEST)
+        c = NewsComment.objects.create(news=news, user=request.user, commentaire=txt)
+        return Response(NewsCommentSerializer(c).data, status=status.HTTP_201_CREATED)

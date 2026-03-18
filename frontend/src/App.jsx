@@ -1,31 +1,34 @@
+import { Suspense, lazy } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
-import Layout from './components/layout/Layout'
-import Accueil from './components/accueil/Accueil'
-import Login from './components/auth/Login'
-import Register from './components/auth/Register'
-import DashboardAdmin from './components/dashboard/DashboardAdmin'
-import DashboardMembre from './components/dashboard/DashboardMembre'
-import DashboardJewrin from './components/dashboard/DashboardJewrin'
-import Evenements from './components/informations/Evenements'
-import FinanceParDahira from './components/finance/FinanceParDahira'
-import FinanceHierarchie from './components/finance/FinanceHierarchie'
-import LeveesFonds from './components/finance/LeveesFonds'
-import ProgrammeKamil from './components/culturelle/ProgrammeKamil'
-import MesProgressions from './components/culturelle/MesProgressions'
-import ValidationsKamil from './components/culturelle/ValidationsKamil'
-import ActivitesReligieuses from './components/culturelle/ActivitesReligieuses'
-import Messagerie from './components/communication/Messagerie'
-import Notifications from './components/communication/Notifications'
-import ProjetsSociaux from './components/sociale/ProjetsSociaux'
-import Reunions from './components/organisation/Reunions'
-import SectionsDahiras from './components/organisation/SectionsDahiras'
-import AdminOrganisation from './components/organisation/AdminOrganisation'
-import Conservatoire from './components/conservatoire/Conservatoire'
-import Bibliotheque from './components/bibliotheque/Bibliotheque'
-import Cours from './components/scientifique/Cours'
-import MonProfil from './components/comptes/MonProfil'
-import GestionMembres from './components/comptes/GestionMembres'
+
+const Layout = lazy(() => import('./components/layout/Layout'))
+const Accueil = lazy(() => import('./components/accueil/Accueil'))
+const Login = lazy(() => import('./components/auth/Login'))
+const Register = lazy(() => import('./components/auth/Register'))
+const DashboardAdmin = lazy(() => import('./components/dashboard/DashboardAdmin'))
+const DashboardMembre = lazy(() => import('./components/dashboard/DashboardMembre'))
+const DashboardJewrin = lazy(() => import('./components/dashboard/DashboardJewrin'))
+const Evenements = lazy(() => import('./components/informations/Evenements'))
+const News = lazy(() => import('./components/informations/News'))
+const FinanceParDahira = lazy(() => import('./components/finance/FinanceParDahira'))
+const FinanceHierarchie = lazy(() => import('./components/finance/FinanceHierarchie'))
+const LeveesFonds = lazy(() => import('./components/finance/LeveesFonds'))
+const ProgrammeKamil = lazy(() => import('./components/culturelle/ProgrammeKamil'))
+const MesProgressions = lazy(() => import('./components/culturelle/MesProgressions'))
+const ValidationsKamil = lazy(() => import('./components/culturelle/ValidationsKamil'))
+const ActivitesReligieuses = lazy(() => import('./components/culturelle/ActivitesReligieuses'))
+const Messagerie = lazy(() => import('./components/communication/Messagerie'))
+const Notifications = lazy(() => import('./components/communication/Notifications'))
+const ProjetsSociaux = lazy(() => import('./components/sociale/ProjetsSociaux'))
+const Reunions = lazy(() => import('./components/organisation/Reunions'))
+const SectionsDahiras = lazy(() => import('./components/organisation/SectionsDahiras'))
+const AdminOrganisation = lazy(() => import('./components/organisation/AdminOrganisation'))
+const Conservatoire = lazy(() => import('./components/conservatoire/Conservatoire'))
+const Bibliotheque = lazy(() => import('./components/bibliotheque/Bibliotheque'))
+const Cours = lazy(() => import('./components/scientifique/Cours'))
+const MonProfil = lazy(() => import('./components/comptes/MonProfil'))
+const GestionMembres = lazy(() => import('./components/comptes/GestionMembres'))
 
 const JEWRINE_ROLES = [
   'jewrin',
@@ -72,6 +75,7 @@ function AppRoutes() {
         <Route path="membre" element={<ProtectedRoute roles={['membre']}><DashboardMembre /></ProtectedRoute>} />
         <Route path="jewrin" element={<ProtectedRoute roles={JEWRINE_ROLES}><DashboardJewrin /></ProtectedRoute>} />
         <Route path="informations/evenements" element={<Evenements />} />
+        <Route path="informations/news" element={<News />} />
         <Route path="finance/cotisations" element={<Navigate to="/finance/par-dahira" replace />} />
         <Route path="finance/par-dahira" element={<ProtectedRoute roles={['admin', 'jewrine_finance']}><FinanceParDahira /></ProtectedRoute>} />
         <Route path="finance/hierarchie" element={<ProtectedRoute roles={['admin', 'jewrine_finance']}><FinanceHierarchie /></ProtectedRoute>} />
@@ -98,5 +102,9 @@ function AppRoutes() {
 }
 
 export default function App() {
-  return <AppRoutes />
+  return (
+    <Suspense fallback={null}>
+      <AppRoutes />
+    </Suspense>
+  )
 }

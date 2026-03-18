@@ -16,6 +16,7 @@ import { ChevronLeft, ChevronRight, Close, Home as HomeIcon } from '@mui/icons-m
 import {
   Dashboard as DashboardIcon,
   Event as EventIcon,
+  Newspaper as NewsIcon,
   AccountBalance as FinanceIcon,
   MenuBook as KamilIcon,
   CheckCircle as ValidIcon,
@@ -66,7 +67,7 @@ const sectionsAdmin = [
       { label: 'Admin organisation', path: '/organisation/admin', icon: <OrgIcon /> },
     ],
   },
-  { title: 'Projet gestion informations', items: [{ label: 'Événements', path: '/informations/evenements', icon: <EventIcon /> }] },
+  { title: 'Projet gestion informations', items: [{ label: 'Événements', path: '/informations/evenements', icon: <EventIcon /> }, { label: 'News', path: '/informations/news', icon: <NewsIcon /> }] },
   {
     title: 'Projet gestion finance',
     items: [
@@ -107,7 +108,7 @@ const sectionsMembre = [
       { label: 'Tableau de bord', path: '/membre', icon: <DashboardIcon /> },
     ],
   },
-  { title: 'Projet gestion informations', items: [{ label: 'Événements', path: '/informations/evenements', icon: <EventIcon /> }] },
+  { title: 'Projet gestion informations', items: [{ label: 'Événements', path: '/informations/evenements', icon: <EventIcon /> }, { label: 'News', path: '/informations/news', icon: <NewsIcon /> }] },
   {
     title: 'Projet gestion finance',
     items: [
@@ -163,7 +164,7 @@ const sectionsJewrin = [
   //     { label: 'Activités religieuses', path: '/culturelle/activites-religieuses', icon: <MosqueIcon /> },
   //   ],
   // },
-  { title: 'Projet gestion informations', items: [{ label: 'Événements', path: '/informations/evenements', icon: <EventIcon /> }] },
+  { title: 'Projet gestion informations', items: [{ label: 'Événements', path: '/informations/evenements', icon: <EventIcon /> }, { label: 'News', path: '/informations/news', icon: <NewsIcon /> }] },
   {
     title: 'Projet gestion communication',
     items: [
@@ -399,6 +400,13 @@ export default function Sidebar({ open, onClose, collapsed, onToggleCollapse }) 
             boxSizing: 'border-box',
             background: COLORS.beigeClair,
             borderRight: `2px solid ${COLORS.vert}`,
+            // Le Header est sticky (56px xs / 64px sm) : on décale la sidebar dessous
+            top: { xs: 56, sm: 64 },
+            height: { xs: 'calc(100dvh - 56px)', sm: 'calc(100dvh - 64px)' },
+            borderTopRightRadius: 18,
+            borderBottomRightRadius: 18,
+            boxShadow: `10px 0 40px ${COLORS.vert}22`,
+            overflow: 'hidden',
           },
         }}
       >

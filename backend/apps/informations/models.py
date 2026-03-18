@@ -149,3 +149,52 @@ class GalerieMedia(models.Model):
 
     def __str__(self):
         return self.titre
+
+
+class News(models.Model):
+    """
+    Actualité / News publiée sur la plateforme.
+    """
+    titre = models.CharField(max_length=200, blank=True)
+    contenu = models.TextField(blank=True)
+    image = models.ImageField(upload_to='news/', null=True, blank=True)
+    auteur = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='news_crees')
+    date_creation = models.DateTimeField(auto_now_add=True)
+    date_modification = models.DateTimeField(auto_now=True)
+    est_publiee = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = 'News'
+        verbose_name_plural = 'News'
+        ordering = ['-date_creation']
+
+    def __str__(self):
+        return self.titre
+
+
+class NewsLike(models.Model):
+    news = models.ForeignKey(News, on_delete=models.CASCADE, related_name='likes')
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='news_likes')
+    date_creation = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['news', 'user']
+
+
+class NewsSave(models.Model):
+    news = models.ForeignKey(News, on_delete=models.CASCADE, related_name='saves')
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='news_saves')
+    date_creation = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['news', 'user']
+
+
+class NewsComment(models.Model):
+    news = models.ForeignKey(News, on_delete=models.CASCADE, related_name='comments')
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='news_comments')
+    commentaire = models.TextField()
+    date_creation = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-date_creation']
