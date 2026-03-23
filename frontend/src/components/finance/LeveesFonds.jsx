@@ -26,7 +26,7 @@ import {
   Chip,
 } from '@mui/material'
 import { Add, Edit, Delete, Payment } from '@mui/icons-material'
-import api from '../../services/api'
+import api, { clearCache } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 
 const COLORS = { vert: '#2DA9E1', or: '#2DA9E1', vertFonce: '#0F4D71' }
@@ -65,7 +65,20 @@ export default function LeveesFonds() {
 
   const loadList = () => {
     setLoading(true)
-    api.get('/finance/levees-fonds/').then(({ data }) => setList(data.results || data)).catch(() => setList([])).finally(() => setLoading(false))
+    // Add timeout for better UX on slow connections
+    const timeoutId = setTimeout(() => {
+      if (loading) {
+        setMessage({ type: 'info', text: 'Chargement en cours...' })
+      }
+    }, 3000)
+    
+    api.get('/finance/levees-fonds/')
+      .then(({ data }) => setList(data.results || data))
+      .catch(() => setList([]))
+      .finally(() => {
+        clearTimeout(timeoutId)
+        setLoading(false)
+      })
   }
   useEffect(() => { loadList() }, [])
 
@@ -136,6 +149,8 @@ export default function LeveesFonds() {
       loadList()
       setOpenForm(false)
       setEditingId(null)
+      // Clear cache to show updated data
+      clearCache('/finance/levees-fonds')
     } catch (err) {
       const d = err.response?.data?.detail || err.response?.data
       setMessage({ type: 'error', text: typeof d === 'object' ? JSON.stringify(d) : (d || 'Erreur') })
@@ -153,6 +168,8 @@ export default function LeveesFonds() {
       setMessage({ type: 'success', text: 'Levée de fonds supprimée.' })
       loadList()
       setOpenDelete(null)
+      // Clear cache to show updated data
+      clearCache('/finance/levees-fonds')
     } catch (err) {
       setMessage({ type: 'error', text: err.response?.data?.detail || 'Erreur.' })
     } finally {
@@ -194,6 +211,8 @@ export default function LeveesFonds() {
       setOpenParticipate(null)
       setParticipateForm({ montant: '', reference_wave: '', description: '' })
       setMessage({ type: 'info', text: 'Transaction créée. Veuillez effectuer votre paiement sur Wave.' })
+      // Reload list in background without blocking UI
+      setTimeout(() => loadList(), 1000)
     } catch (err) {
       const d = err.response?.data?.detail || err.response?.data
       setMessage({ type: 'error', text: typeof d === 'object' ? JSON.stringify(d) : (d || 'Erreur') })

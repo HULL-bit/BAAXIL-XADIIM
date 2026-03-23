@@ -110,7 +110,10 @@ class UserList(generics.ListAPIView):
     filterset_fields = ['role', 'est_actif']
 
     def get_queryset(self):
-        qs = User.objects.filter(is_active=True).order_by('-date_inscription')
+        # Optimize queries with select_related for foreign keys
+        qs = User.objects.filter(is_active=True).select_related(
+            'regroupement', 'section', 'sous_section', 'dahira'
+        ).order_by('-date_inscription')
         dahira = self.request.query_params.get('dahira')
         sous_section = self.request.query_params.get('sous_section')
         section = self.request.query_params.get('section')

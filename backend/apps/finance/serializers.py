@@ -9,6 +9,18 @@ class CotisationMensuelleSerializer(serializers.ModelSerializer):
     class Meta:
         model = CotisationMensuelle
         fields = '__all__'
+    
+    def validate_type_cotisation(self, value):
+        """Ensure type_cotisation has a valid value, defaulting to 'mensualite'"""
+        if not value or value.strip() == '':
+            return 'mensualite'
+        return value
+    
+    def validate_montant(self, value):
+        """Ensure montant is positive"""
+        if value is None or value <= 0:
+            raise serializers.ValidationError("Le montant doit être positif.")
+        return value
 
 
 class LeveeFondsSerializer(serializers.ModelSerializer):

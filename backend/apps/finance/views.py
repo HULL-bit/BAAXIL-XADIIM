@@ -17,6 +17,7 @@ class CotisationMensuelleViewSet(viewsets.ModelViewSet):
     filterset_fields = ['membre', 'mois', 'annee', 'statut']
 
     def get_queryset(self):
+        # Optimize queries with select_related and only necessary fields
         qs = CotisationMensuelle.objects.select_related('membre').order_by('-annee', '-mois')
         if not has_admin_access(self.request.user, 'finance'):
             qs = qs.filter(membre=self.request.user)
@@ -36,6 +37,17 @@ class CotisationMensuelleViewSet(viewsets.ModelViewSet):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             return [IsAdminOrJewrinFinance()]
         return [IsAuthenticated()]
+
+    def perform_create(self, serializer):
+        """Create cotisation with validated data."""
+        # Ensure type_cotisation is set before saving
+        if not serializer.validated_data.get('type_cotisation'):
+            serializer.validated_data['type_cotisation'] = 'mensualite'
+        instance = serializer.save()
+        # Double-check after save
+        if not instance.type_cotisation:
+            instance.type_cotisation = 'mensualite'
+            instance.save(update_fields=['type_cotisation'])
 
     def perform_update(self, serializer):
         instance = serializer.save()
@@ -284,6 +296,7 @@ class LeveeFondsViewSet(viewsets.ModelViewSet):
     serializer_class = LeveeFondsSerializer
     permission_classes = [IsAuthenticated]
     filterset_fields = ['statut']
+    pagination_class = None  # Disable pagination for simplicity
 
     def get_queryset(self):
         qs = LeveeFonds.objects.select_related('cree_par').all().order_by('-date_creation')

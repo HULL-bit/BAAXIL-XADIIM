@@ -21,7 +21,7 @@ import {
   CircularProgress,
 } from '@mui/material'
 import { Add, Groups, AccountBalance } from '@mui/icons-material'
-import api from '../../services/api'
+import api, { clearCache } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 
 const COLORS = { vert: '#2DA9E1', vertFonce: '#0F4D71' }
@@ -107,13 +107,15 @@ export default function FinanceParDahira() {
     if (selectedDahiraId) params.dahira = selectedDahiraId
     else if (selectedSectionId) params.section = selectedSectionId
     else if (selectedRegroupementId) params.regroupement = selectedRegroupementId
-    Promise.all([
+    
+    // Use Promise.allSettled for better error handling and performance
+    Promise.allSettled([
       api.get('/auth/users/', { params }).then(({ data }) => data.results || data || []),
       api.get('/finance/cotisations/', { params }).then(({ data }) => data.results || data || []),
     ])
-      .then(([users, cots]) => {
-        setMembres(Array.isArray(users) ? users : [])
-        setCotisations(Array.isArray(cots) ? cots : [])
+      .then(([usersResult, cotsResult]) => {
+        setMembres(usersResult.status === 'fulfilled' ? (Array.isArray(usersResult.value) ? usersResult.value : []) : [])
+        setCotisations(cotsResult.status === 'fulfilled' ? (Array.isArray(cotsResult.value) ? cotsResult.value : []) : [])
       })
       .catch(() => {
         setMembres([])
@@ -240,24 +242,64 @@ export default function FinanceParDahira() {
       setDialogError('Sélectionnez au moins un membre dans la liste.')
       return
     }
+    
+    // Validate form data before sending
+    if (!assignForm.type_cotisation || assignForm.type_cotisation.trim() === '') {
+      setDialogError('Le type de cotisation est requis.')
+      return
+    }
+    if (!assignForm.montant || Number(assignForm.montant) <= 0) {
+      setDialogError('Le montant doit être supérieur à 0.')
+      return
+    }
+    
     setSaving(true)
     setMessage({ type: '', text: '' })
     try {
-      for (const membreId of ids) {
-        await api.post('/finance/cotisations/', {
-          membre: membreId,
-          mois: assignForm.mois,
-          annee: assignForm.annee,
-          date_echeance: assignForm.date_echeance,
-          type_cotisation: assignForm.type_cotisation,
-          objet_assignation: assignForm.type_cotisation === 'assignation' ? (assignForm.objet_assignation || '').trim() : '',
-          montant: Number(assignForm.montant) || 1000,
-          statut: 'en_attente',
-          mode_paiement: 'wave',
+      // Prepare common payload - ensure type_cotisation is explicitly set
+      const payload = {
+        mois: assignForm.mois,
+        annee: assignForm.annee,
+        date_echeance: assignForm.date_echeance,
+        type_cotisation: assignForm.type_cotisation || 'mensualite',
+        objet_assignation: assignForm.type_cotisation === 'assignation' ? (assignForm.objet_assignation || '').trim() : '',
+        montant: Number(assignForm.montant) || 1000,
+        statut: 'en_attente',
+        mode_paiement: 'wave',
+      }
+      
+      console.log('Creating cotisations with payload:', payload)
+      
+      // Create cotisations in parallel with concurrency limit for better performance
+      const batchSize = 5
+      const errors = []
+      
+      for (let i = 0; i < ids.length; i += batchSize) {
+        const batch = ids.slice(i, i + batchSize)
+        const results = await Promise.allSettled(batch.map(membreId => 
+          api.post('/finance/cotisations/', { ...payload, membre: membreId })
+        ))
+        
+        // Collect any errors but continue processing
+        results.forEach((result, idx) => {
+          if (result.status === 'rejected') {
+            const memberName = membresInDialog.find(m => m.id === batch[idx])?.username || `Membre #${batch[idx]}`
+            errors.push(`${memberName}: ${result.reason?.response?.data?.detail || result.reason?.message || 'Erreur inconnue'}`)
+          }
         })
       }
-      setMessage({ type: 'success', text: `${ids.length} cotisation(s) créée(s).` })
-      setOpenAssign(false)
+      
+      if (errors.length > 0) {
+        setDialogError(`Erreurs lors de la création:\n${errors.join('\n')}`)
+        setMessage({ type: 'error', text: `${ids.length - errors.length} cotisation(s) créée(s), ${errors.length} échec(s).` })
+      } else {
+        setMessage({ type: 'success', text: `${ids.length} cotisation(s) créée(s).` })
+        setOpenAssign(false)
+      }
+      
+      // Clear cache to force fresh data on next load
+      clearCache('/finance/cotisations')
+      clearCache('/auth/users')
       if (hasFilter) {
         const p = {}
         if (selectedDahiraId) p.dahira = selectedDahiraId
