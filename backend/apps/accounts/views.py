@@ -18,7 +18,7 @@ User = get_user_model()
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs)
-        data['user'] = UserMeSerializer(self.user).data
+        data['user'] = UserMeSerializer(self.user, context={'request': self.context.get('request')}).data
         return data
 
 
