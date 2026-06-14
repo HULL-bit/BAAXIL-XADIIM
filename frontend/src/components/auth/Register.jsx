@@ -423,11 +423,6 @@ export default function Register() {
               minRows={3}
               sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
             />
-            <TextField fullWidth name="role" select label="Rôle" value={form.role} onChange={handleChange} margin="dense" sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}>
-              {ROLES.map((r) => (
-                <MenuItem key={r.value} value={r.value}>{r.label}</MenuItem>
-              ))}
-            </TextField>
             <Button
               type="submit"
               fullWidth
