@@ -100,7 +100,7 @@ else:
     url = urlparse.urlparse(DATABASE_URL)
     DATABASES = {
         'default': {
-            'ENGINE': 'django.db.backends.postgresql_psycopg2',
+            'ENGINE': 'django.db.backends.postgresql',
             'NAME': url.path[1:],
             'USER': url.username,
             'PASSWORD': url.password,
