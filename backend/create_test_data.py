@@ -50,6 +50,8 @@ def create_users():
             'role': 'admin',
             'telephone': '+221770000001',
             'categorie': 'professionnel',
+            'is_staff': True,
+            'is_superuser': True,
         },
         {
             'username': 'modou.diop',
@@ -203,6 +205,8 @@ def create_users():
                 'sous_section': sous_section,
                 'dahira': dahira,
                 'regroupement': section.regroupement if section else None,
+                'is_staff': udata.get('is_staff', False),
+                'is_superuser': udata.get('is_superuser', False),
             }
         )
         if created:
@@ -210,8 +214,10 @@ def create_users():
             user.save()
             print(f"  ✓ Created {udata['role']}: {udata['first_name']} {udata['last_name']}")
         else:
-            # Update password if user already exists
+            # Update password and permissions if user already exists
             user.set_password(udata['password'])
+            user.is_staff = udata.get('is_staff', user.is_staff)
+            user.is_superuser = udata.get('is_superuser', user.is_superuser)
             user.save()
     
     print(f"  Total users: {User.objects.count()}")
