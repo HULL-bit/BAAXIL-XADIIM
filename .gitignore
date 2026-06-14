@@ -33,3 +33,4 @@ Thumbs.db
 
 # Media uploads (optionnel : décommenter si vous ne voulez pas versionner les uploads)
 # backend/media/
+sqlite_dump.json
