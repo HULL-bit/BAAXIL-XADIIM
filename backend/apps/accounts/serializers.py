@@ -103,6 +103,17 @@ class UserCreateSerializer(serializers.ModelSerializer):
 class UserMeSerializer(serializers.ModelSerializer):
     role_display = serializers.CharField(source='get_role_display', read_only=True)
     categorie = serializers.CharField(required=False, allow_blank=True, allow_null=True, read_only=False)
+    
+    # Add organization name fields for frontend
+    regroupement_nom = serializers.CharField(source='regroupement.nom', read_only=True)
+    section_nom = serializers.CharField(source='section.nom', read_only=True)
+    sous_section_label = serializers.SerializerMethodField()
+    dahira_nom = serializers.CharField(source='dahira.nom', read_only=True)
+    
+    def get_sous_section_label(self, obj):
+        if not obj.sous_section_id:
+            return None
+        return str(obj.sous_section) if obj.sous_section else None
 
     def validate_categorie(self, value):
         """Normaliser et valider la catégorie"""
@@ -150,7 +161,10 @@ class UserMeSerializer(serializers.ModelSerializer):
             'groupe_sanguin',
             'role', 'role_display', 'photo',
             'photo_updated_at',
-            'regroupement', 'section', 'sous_section', 'dahira',
+            'regroupement', 'regroupement_nom',
+            'section', 'section_nom',
+            'sous_section', 'sous_section_label',
+            'dahira', 'dahira_nom',
             'date_inscription', 'est_actif', 'numero_wave', 'numero_carte',
             'specialite', 'biographie',
             'cotisations_payees', 'chapitres_lus', 'evenements_participes',
