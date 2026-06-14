@@ -100,18 +100,13 @@ else:
     url = urlparse.urlparse(DATABASE_URL)
     DATABASES = {
         'default': {
-            'ENGINE': 'django.db.backends.postgresql',
+            'ENGINE': 'django.db.backends.postgresql_psycopg2',
             'NAME': url.path[1:],
             'USER': url.username,
             'PASSWORD': url.password,
             'HOST': url.hostname,
             'PORT': url.port or 5432,
-            'OPTIONS': {
-                'sslmode': 'prefer',
-                'connect_timeout': 10,
-            },
             'CONN_MAX_AGE': 600,  # Persist connections for 10 minutes
-            'CONN_HEALTH_CHECKS': True,  # Check connection health before reuse
         }
     }
 
