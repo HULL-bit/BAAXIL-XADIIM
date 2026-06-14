@@ -77,23 +77,11 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 # Configuration de la base de données
-# En local: SQLite (par défaut Django)
-# En production: PostgreSQL via DATABASE_URL
+# Priorité: PostgreSQL via DATABASE_URL si disponible, sinon SQLite local
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
-if DEBUG and not DATABASE_URL:
-    # Utiliser SQLite en développement local
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
-    }
-else:
-    # Utiliser PostgreSQL en production
-    if not DATABASE_URL:
-        raise ImproperlyConfigured('DATABASE_URL est requis en production.')
-
+if DATABASE_URL:
+    # Utiliser PostgreSQL (production/Render)
     import urllib.parse as urlparse
 
     urlparse.uses_netloc.append('postgres')
@@ -107,6 +95,14 @@ else:
             'HOST': url.hostname,
             'PORT': url.port or 5432,
             'CONN_MAX_AGE': 600,  # Persist connections for 10 minutes
+        }
+    }
+else:
+    # Utiliser SQLite en développement local
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
 
