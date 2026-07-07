@@ -28,10 +28,31 @@ import {
   TableRow,
   Paper,
 } from '@mui/material'
-import { Add, Edit, Delete, Visibility, VisibilityOff, Search, FilterList, RestartAlt } from '@mui/icons-material'
+import { Add, Edit, Delete, Visibility, VisibilityOff, Search, FilterList, RestartAlt, People, Man, Woman, CheckCircle } from '@mui/icons-material'
 import api from '../../services/api'
 import { getMediaUrl } from '../../services/media'
 import { colors } from '../../styles/theme'
+
+const StatCard = ({ title, value, icon, color }) => (
+  <Card
+    sx={{
+      borderTop: `4px solid ${color}`,
+      height: '100%',
+      transition: 'all 0.3s ease',
+      '&:hover': { transform: 'translateY(-3px)', boxShadow: `0 10px 30px ${color}25` },
+    }}
+  >
+    <CardContent sx={{ p: 2 }}>
+      <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+        <Box>
+          <Typography variant="body2" color="text.secondary">{title}</Typography>
+          <Typography variant="h5" sx={{ color, fontWeight: 700, mt: 0.5 }}>{value}</Typography>
+        </Box>
+        <Box sx={{ width: 44, height: 44, borderRadius: '50%', bgcolor: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color }}>{icon}</Box>
+      </Box>
+    </CardContent>
+  </Card>
+)
 
 const PAGE_SIZE = 20
 const ROLES = [
@@ -85,6 +106,7 @@ export default function GestionMembres() {
   const [page, setPage] = useState(1)
   const [hasSearched, setHasSearched] = useState(false)
   const [totalMembres, setTotalMembres] = useState(null)
+  const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
   const [message, setMessage] = useState({ type: '', text: '' })
@@ -168,12 +190,23 @@ export default function GestionMembres() {
     }
   }
 
+  const loadStats = async () => {
+    try {
+      const { data } = await api.get('/auth/admin/statistiques/')
+      setStats(data)
+    } catch {
+      setStats(null)
+    }
+  }
+
   useEffect(() => { loadTotalMembres() }, [])
   useEffect(() => { loadOrganisation() }, [])
+  useEffect(() => { loadStats() }, [])
 
   const refreshCurrentPage = async () => {
     if (hasSearched) await runSearch(page)
     await loadTotalMembres()
+    await loadStats()
   }
 
   const handleOpenAdd = () => {
@@ -309,6 +342,22 @@ export default function GestionMembres() {
 
   return (
     <Box>
+      {stats && (
+        <Grid container spacing={2} sx={{ mb: 3 }}>
+          <Grid item xs={6} sm={3}>
+            <StatCard title="Total membres" value={stats.total_membres ?? 0} icon={<People />} color={colors.vert} />
+          </Grid>
+          <Grid item xs={6} sm={3}>
+            <StatCard title="Actifs" value={stats.membres_actifs ?? 0} icon={<CheckCircle />} color={colors.vertFonce} />
+          </Grid>
+          <Grid item xs={6} sm={3}>
+            <StatCard title="Hommes" value={stats.membres_hommes ?? 0} icon={<Man />} color={colors.vert} />
+          </Grid>
+          <Grid item xs={6} sm={3}>
+            <StatCard title="Femmes" value={stats.membres_femmes ?? 0} icon={<Woman />} color={colors.or} />
+          </Grid>
+        </Grid>
+      )}
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 3 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
           <Box>

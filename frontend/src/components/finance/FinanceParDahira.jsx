@@ -3,6 +3,9 @@ import {
   Box,
   Typography,
   Paper,
+  Grid,
+  Card,
+  CardContent,
   Table,
   TableBody,
   TableCell,
@@ -20,11 +23,32 @@ import {
   Alert,
   CircularProgress,
 } from '@mui/material'
-import { Add, Groups, AccountBalance } from '@mui/icons-material'
+import { Add, Groups, AccountBalance, MonetizationOn, TrendingUp, HourglassEmpty } from '@mui/icons-material'
 import api, { clearCache } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 
 const COLORS = { vert: '#2DA9E1', vertFonce: '#0F4D71' }
+
+const StatCard = ({ title, value, icon, color }) => (
+  <Card
+    sx={{
+      borderTop: `4px solid ${color}`,
+      height: '100%',
+      transition: 'all 0.3s ease',
+      '&:hover': { transform: 'translateY(-3px)', boxShadow: `0 10px 30px ${color}25` },
+    }}
+  >
+    <CardContent sx={{ p: 2 }}>
+      <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+        <Box>
+          <Typography variant="body2" color="text.secondary">{title}</Typography>
+          <Typography variant="h6" sx={{ color, fontWeight: 700, mt: 0.5 }}>{value}</Typography>
+        </Box>
+        <Box sx={{ width: 44, height: 44, borderRadius: '50%', bgcolor: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color }}>{icon}</Box>
+      </Box>
+    </CardContent>
+  </Card>
+)
 
 export default function FinanceParDahira() {
   const { user } = useAuth()
@@ -38,6 +62,7 @@ export default function FinanceParDahira() {
   const [membres, setMembres] = useState([])
   const [cotisations, setCotisations] = useState([])
   const [stats, setStats] = useState(null)
+  const [globalStats, setGlobalStats] = useState(null)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState({ type: '', text: '' })
   const [openAssign, setOpenAssign] = useState(false)
@@ -73,6 +98,14 @@ export default function FinanceParDahira() {
         setDahiras(Array.isArray(dah) ? dah : [])
       })
       .catch(() => { setRegroupements([]); setSections([]); setSousSections([]); setDahiras([]) })
+  }, [isAdmin])
+
+  // Statistiques globales (toutes cotisations), toujours visibles indépendamment du filtre sélectionné.
+  useEffect(() => {
+    if (!isAdmin) return
+    api.get('/finance/cotisations/statistiques/')
+      .then(({ data }) => setGlobalStats(data))
+      .catch(() => setGlobalStats(null))
   }, [isAdmin])
 
   const sectionsFiltered = selectedRegroupementId
@@ -300,6 +333,7 @@ export default function FinanceParDahira() {
       // Clear cache to force fresh data on next load
       clearCache('/finance/cotisations')
       clearCache('/auth/users')
+      api.get('/finance/cotisations/statistiques/').then(({ data }) => setGlobalStats(data)).catch(() => {})
       if (hasFilter) {
         const p = { page_size: 500 }
         if (selectedDahiraId) p.dahira = selectedDahiraId
@@ -344,6 +378,43 @@ export default function FinanceParDahira() {
       <Typography variant="body2" sx={{ color: COLORS.vertFonce, mb: 3 }}>
         Sélectionnez un regroupement, une section ou un dahira pour voir les membres et les cotisations. Pour ajouter des cotisations, cliquez sur le bouton puis choisissez un regroupement, une section ou un dahira et sélectionnez un ou plusieurs membres.
       </Typography>
+
+      {globalStats && (
+        <Grid container spacing={2} sx={{ mb: 3 }}>
+          <Grid item xs={6} sm={3}>
+            <StatCard
+              title="Montant total assigné"
+              value={`${(globalStats.montant_total_assigne || 0).toLocaleString('fr-FR')} FCFA`}
+              icon={<MonetizationOn />}
+              color={COLORS.vert}
+            />
+          </Grid>
+          <Grid item xs={6} sm={3}>
+            <StatCard
+              title="Montant total payé"
+              value={`${(globalStats.montant_total_paye || 0).toLocaleString('fr-FR')} FCFA`}
+              icon={<TrendingUp />}
+              color={COLORS.vertFonce}
+            />
+          </Grid>
+          <Grid item xs={6} sm={3}>
+            <StatCard
+              title="% payé (global)"
+              value={`${globalStats.pourcentage_montant_paye?.toFixed?.(1) ?? globalStats.pourcentage_montant_paye ?? 0}%`}
+              icon={<AccountBalance />}
+              color={COLORS.vert}
+            />
+          </Grid>
+          <Grid item xs={6} sm={3}>
+            <StatCard
+              title="Cotisations en attente"
+              value={globalStats.total_en_attente ?? 0}
+              icon={<HourglassEmpty />}
+              color="#C9A961"
+            />
+          </Grid>
+        </Grid>
+      )}
 
       {stats && (
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
