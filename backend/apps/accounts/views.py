@@ -134,9 +134,11 @@ class UserList(generics.ListAPIView):
                 'regroupement_id', 'section_id', 'sous_section_id', 'dahira_id', 'is_active',
             ).order_by('-date_inscription')
         else:
-            # Optimize queries with select_related for foreign keys
+            # sous_section__section : UserSerializer.get_sous_section_label fait str(sous_section),
+            # qui accède à self.section.nom (SousSection.__str__) — sans ce select_related,
+            # chaque ligne de la liste déclenche sa propre requête (jusqu'à ~900 aujourd'hui).
             qs = User.objects.filter(is_active=True).select_related(
-                'regroupement', 'section', 'sous_section', 'dahira'
+                'regroupement', 'section', 'sous_section', 'sous_section__section', 'dahira'
             ).order_by('-date_inscription')
         dahira = self.request.query_params.get('dahira')
         sous_section = self.request.query_params.get('sous_section')

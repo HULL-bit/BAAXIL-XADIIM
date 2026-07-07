@@ -100,8 +100,8 @@ class MessageViewSet(viewsets.ModelViewSet):
     def conversations(self, request):
         """Liste de tous les membres de la daara comme contacts (avec qui l'utilisateur a échangé ou non)."""
         from apps.accounts.models import CustomUser
-        from django.db.models import Q
-        
+        from django.db.models import Q, Count
+
         user = request.user
         
         try:
@@ -123,22 +123,32 @@ class MessageViewSet(viewsets.ModelViewSet):
             logger.error(f"Erreur lors de la récupération des utilisateurs: {e}")
             return Response([])
         
+        # Deux requêtes groupées au lieu de deux requêtes PAR CONTACT (~900 membres
+        # aujourd'hui = jusqu'à ~1800 allers-retours réseau) : on récupère tous les
+        # messages pertinents une seule fois, triés par date décroissante, puis on ne
+        # garde que la première occurrence (= la plus récente) par contact.
+        relevant_messages = Message.objects.filter(
+            Q(expediteur=user, est_archive_expediteur=False) |
+            Q(destinataire=user, est_archive_destinataire=False)
+        ).order_by('-date_envoi')
+        last_message_par_contact = {}
+        for m in relevant_messages:
+            contact_id = m.destinataire_id if m.expediteur_id == user.id else m.expediteur_id
+            if contact_id not in last_message_par_contact:
+                last_message_par_contact[contact_id] = m
+
+        unread_par_contact = dict(
+            Message.objects.filter(expediteur_id__in=[u.id for u in all_users], destinataire=user, est_lu=False, est_archive_destinataire=False)
+            .values('expediteur_id')
+            .annotate(nb=Count('id'))
+            .values_list('expediteur_id', 'nb')
+        )
+
         conversations = []
         for contact in all_users:
-            # Récupérer le dernier message avec ce contact (non archivé)
-            last_message = Message.objects.filter(
-                Q(expediteur=user, destinataire=contact, est_archive_expediteur=False) | 
-                Q(expediteur=contact, destinataire=user, est_archive_destinataire=False)
-            ).order_by('-date_envoi').first()
-            
-            # Compter les messages non lus de ce contact (non archivés)
-            unread_count = Message.objects.filter(
-                expediteur=contact,
-                destinataire=user,
-                est_lu=False,
-                est_archive_destinataire=False
-            ).count()
-            
+            last_message = last_message_par_contact.get(contact.id)
+            unread_count = unread_par_contact.get(contact.id, 0)
+
             contact_name = contact.get_full_name() or f'{contact.first_name or ""} {contact.last_name or ""}'.strip() or contact.email or f'Utilisateur #{contact.id}'
             
             # Gérer la photo de manière sécurisée - retourner le nom du fichier pour que le frontend construise l'URL

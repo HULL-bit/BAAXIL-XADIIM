@@ -342,30 +342,36 @@ class CotisationMensuelleViewSet(viewsets.ModelViewSet):
         if parametres:
             jour_echeance = parametres.jour_echeance_cotisation
 
-        membres = User.objects.filter(is_active=True, est_actif=True)
-        created = 0
-        already_existing = 0
-        for membre in membres:
-            _, was_created = CotisationMensuelle.objects.get_or_create(
+        # bulk_create + une seule requête pour les cotisations déjà existantes, au lieu
+        # d'un get_or_create par membre (jusqu'à ~1800 allers-retours avec les ~900
+        # membres actuels — c'est cette version qui prenait plusieurs minutes en pratique).
+        membres = list(User.objects.filter(is_active=True, est_actif=True))
+        existing_membre_ids = set(
+            CotisationMensuelle.objects.filter(mois=mois, annee=annee, type_cotisation='mensualite')
+            .values_list('membre_id', flat=True)
+        )
+        date_echeance = date(annee, mois, min(jour_echeance, 28))
+        to_create = [
+            CotisationMensuelle(
                 membre=membre,
                 mois=mois,
                 annee=annee,
                 type_cotisation='mensualite',
-                defaults={
-                    'montant': membre.montant_cotisation,
-                    'date_echeance': date(annee, mois, min(jour_echeance, 28)),
-                    'statut': 'en_attente',
-                },
+                montant=membre.montant_cotisation,
+                date_echeance=date_echeance,
+                statut='en_attente',
             )
-            if was_created:
-                created += 1
-            else:
-                already_existing += 1
+            for membre in membres
+            if membre.id not in existing_membre_ids
+        ]
+        CotisationMensuelle.objects.bulk_create(to_create)
+        created = len(to_create)
+        already_existing = len(membres) - created
 
         return Response({
             'mois': mois,
             'annee': annee,
-            'total_membres': membres.count(),
+            'total_membres': len(membres),
             'created': created,
             'already_existing': already_existing,
         })
