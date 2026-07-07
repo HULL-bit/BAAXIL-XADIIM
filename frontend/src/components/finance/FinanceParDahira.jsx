@@ -142,8 +142,10 @@ export default function FinanceParDahira() {
     else if (selectedRegroupementId) params.regroupement = selectedRegroupementId
 
     // Use Promise.allSettled for better error handling and performance
+    // membres n'est utilisé ici que pour son .length/.id (cf. handleSelectAll) : minimal=1
+    // évite de transférer le profil complet de centaines de membres.
     Promise.allSettled([
-      api.get('/auth/users/', { params }).then(({ data }) => data.results || data || []),
+      api.get('/auth/users/', { params: { ...params, minimal: 1 } }).then(({ data }) => data.results || data || []),
       api.get('/finance/cotisations/', { params }).then(({ data }) => data.results || data || []),
     ])
       .then(([usersResult, cotsResult]) => {
@@ -341,7 +343,7 @@ export default function FinanceParDahira() {
         else if (selectedRegroupementId) p.regroupement = selectedRegroupementId
         const [cotsRes, usersRes] = await Promise.all([
           api.get('/finance/cotisations/', { params: p }),
-          api.get('/auth/users/', { params: p }),
+          api.get('/auth/users/', { params: { ...p, minimal: 1 } }),
         ])
         setCotisations(cotsRes.data.results || cotsRes.data || [])
         setMembres(usersRes.data.results || usersRes.data || [])

@@ -213,6 +213,32 @@ class CotisationMensuelleViewSet(viewsets.ModelViewSet):
         from django.contrib.auth import get_user_model
         User = get_user_model()
 
+        # Une requête par table (au lieu d'une requête par section/sous-section/dahira) :
+        # avec ~25 dahiras réelles, l'ancienne version faisait des dizaines de
+        # petites requêtes séquentielles vers Postgres (réseau), très lent en pratique.
+        all_dahiras = list(Dahira.objects.all().order_by('nom'))
+        # select_related('section') : SousSection.__str__ accède à self.section.nom (utilisé
+        # pour "label" plus bas), sans quoi chaque instance déclenche sa propre requête.
+        all_sous_sections = list(SousSection.objects.select_related('section').order_by('sexe'))
+        all_sections = list(Section.objects.all().order_by('nom'))
+
+        nb_membres_par_dahira = {
+            row['dahira_id']: row['nb']
+            for row in User.objects.filter(is_active=True, dahira_id__isnull=False)
+            .values('dahira_id')
+            .annotate(nb=Count('id'))
+        }
+
+        dahiras_par_sous_section = {}
+        for d in all_dahiras:
+            dahiras_par_sous_section.setdefault(d.sous_section_id, []).append(d)
+        sous_sections_par_section = {}
+        for ss in all_sous_sections:
+            sous_sections_par_section.setdefault(ss.section_id, []).append(ss)
+        sections_par_regroupement = {}
+        for s in all_sections:
+            sections_par_regroupement.setdefault(s.regroupement_id, []).append(s)
+
         def build_dahiras(sous_section_id):
             return [
                 {
@@ -222,9 +248,9 @@ class CotisationMensuelleViewSet(viewsets.ModelViewSet):
                     'montant_paye': round(by_dahira.get(d.id, {}).get('montant_paye', 0), 2),
                     'pct_paye': pct(by_dahira.get(d.id, {}).get('montant_total', 0), by_dahira.get(d.id, {}).get('montant_paye', 0)),
                     'nb_cotisations': by_dahira.get(d.id, {}).get('nb', 0),
-                    'nb_membres': User.objects.filter(dahira_id=d.id, is_active=True).count(),
+                    'nb_membres': nb_membres_par_dahira.get(d.id, 0),
                 }
-                for d in Dahira.objects.filter(sous_section_id=sous_section_id).order_by('nom')
+                for d in dahiras_par_sous_section.get(sous_section_id, [])
             ]
 
         def build_sous_sections(section_id):
@@ -238,7 +264,7 @@ class CotisationMensuelleViewSet(viewsets.ModelViewSet):
                     'nb_cotisations': by_ss.get(ss.id, {}).get('nb', 0),
                     'dahiras': build_dahiras(ss.id),
                 }
-                for ss in SousSection.objects.filter(section_id=section_id).order_by('sexe')
+                for ss in sous_sections_par_section.get(section_id, [])
             ]
 
         def build_sections(reg_id):
@@ -252,7 +278,7 @@ class CotisationMensuelleViewSet(viewsets.ModelViewSet):
                     'nb_cotisations': by_sec.get(s.id, {}).get('nb', 0),
                     'sous_sections': build_sous_sections(s.id),
                 }
-                for s in Section.objects.filter(regroupement_id=reg_id).order_by('nom')
+                for s in sections_par_regroupement.get(reg_id, [])
             ]
 
         regroupements = [

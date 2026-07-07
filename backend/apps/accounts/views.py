@@ -9,7 +9,7 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 
-from .serializers import UserSerializer, UserCreateSerializer, UserMeSerializer, BadgeSerializer, AttributionBadgeSerializer
+from .serializers import UserSerializer, UserMinimalSerializer, UserCreateSerializer, UserMeSerializer, BadgeSerializer, AttributionBadgeSerializer
 from .models import AttributionBadge
 from .permissions import IsAdminRoleOrStaff
 
@@ -119,11 +119,25 @@ class UserList(generics.ListAPIView):
     }
     search_fields = ['first_name', 'last_name', 'username', 'telephone', 'numero_carte', 'numero_cni']
 
+    def get_serializer_class(self):
+        # Utilisé pour peupler des sélecteurs de membres (formulaires) : évite de
+        # transférer le profil complet de centaines de membres pour une simple liste
+        # déroulante (gain important sur mobile / réseau lent).
+        if self.request.query_params.get('minimal') == '1':
+            return UserMinimalSerializer
+        return UserSerializer
+
     def get_queryset(self):
-        # Optimize queries with select_related for foreign keys
-        qs = User.objects.filter(is_active=True).select_related(
-            'regroupement', 'section', 'sous_section', 'dahira'
-        ).order_by('-date_inscription')
+        if self.request.query_params.get('minimal') == '1':
+            qs = User.objects.filter(is_active=True).only(
+                'id', 'username', 'first_name', 'last_name', 'sexe', 'role',
+                'regroupement_id', 'section_id', 'sous_section_id', 'dahira_id', 'is_active',
+            ).order_by('-date_inscription')
+        else:
+            # Optimize queries with select_related for foreign keys
+            qs = User.objects.filter(is_active=True).select_related(
+                'regroupement', 'section', 'sous_section', 'dahira'
+            ).order_by('-date_inscription')
         dahira = self.request.query_params.get('dahira')
         sous_section = self.request.query_params.get('sous_section')
         section = self.request.query_params.get('section')

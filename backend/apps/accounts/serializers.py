@@ -5,6 +5,15 @@ from .models import ProfilComplementaire, Badge, AttributionBadge
 User = get_user_model()
 
 
+class UserMinimalSerializer(serializers.ModelSerializer):
+    """Représentation légère pour les sélecteurs de membres (formulaires, filtres) :
+    évite de transférer le profil complet (photo, bio, etc.) de centaines de membres
+    juste pour peupler une liste déroulante."""
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'first_name', 'last_name', 'sexe', 'role']
+
+
 class UserSerializer(serializers.ModelSerializer):
     role_display = serializers.CharField(source='get_role_display', read_only=True)
     regroupement_nom = serializers.CharField(source='regroupement.nom', read_only=True)

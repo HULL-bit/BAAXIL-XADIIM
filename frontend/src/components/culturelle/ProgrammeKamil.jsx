@@ -112,7 +112,7 @@ export default function ProgrammeKamil() {
     setJukkisByKamil(byKamil)
   }).catch(() => setJukkisByKamil({}))
   // page_size élevé : liste utilisée pour un sélecteur d'assignation, pas de pagination pertinente ici.
-  const loadMembres = () => api.get('/auth/users/', { params: { page_size: 1000 } }).then(({ data }) => setMembres(data.results || data || [])).catch(() => setMembres([]))
+  const loadMembres = () => api.get('/auth/users/', { params: { page_size: 1000, minimal: 1 } }).then(({ data }) => setMembres(data.results || data || [])).catch(() => setMembres([]))
 
   useEffect(() => {
     setLoading(true)

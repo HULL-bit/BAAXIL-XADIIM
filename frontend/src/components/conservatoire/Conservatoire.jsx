@@ -116,7 +116,7 @@ export default function Conservatoire() {
   const loadSeances = () => api.get('/conservatoire/seances/').then(({ data }) => setSeances(data.results || data)).catch(() => setSeances([]))
   const loadAlbums = () => api.get('/conservatoire/albums/').then(({ data }) => setAlbums(data.results || data)).catch(() => setAlbums([]))
   // page_size élevé : liste utilisée pour un sélecteur de membre, pas de pagination pertinente ici.
-  const loadUsers = () => api.get('/auth/users/', { params: { page_size: 1000 } }).then(({ data }) => setUsers(data.results || data || [])).catch(() => setUsers([]))
+  const loadUsers = () => api.get('/auth/users/', { params: { page_size: 1000, minimal: 1 } }).then(({ data }) => setUsers(data.results || data || [])).catch(() => setUsers([]))
   const loadKourelDetail = (id) => api.get(`/conservatoire/kourels/${id}/`).then(({ data }) => data).catch(() => null)
 
   const loadStatsMembres = () => api.get('/conservatoire/presences/stats_membres/').then(({ data }) => setStatsMembres(Array.isArray(data) ? data : (data?.results || []))).catch(() => setStatsMembres([]))
