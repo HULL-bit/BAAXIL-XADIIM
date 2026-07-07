@@ -58,15 +58,18 @@ api.interceptors.request.use((config) => {
     const cacheKey = `${config.url}${JSON.stringify(config.params || {})}`
     const cachedData = getCachedData(cacheKey)
     if (cachedData) {
-      // Return cached data immediately
-      return Promise.resolve({
-        data: cachedData,
-        config: config,
-        status: 200,
-        statusText: 'OK',
-        headers: {},
-        fromCache: true,
-      })
+      // Court-circuite la requête réseau via un adapter custom : un intercepteur de requête
+      // doit renvoyer une config (pas un objet réponse), sinon axios plante en tentant
+      // d'exécuter dispatchRequest sur un objet sans method/url.
+      config.adapter = () =>
+        Promise.resolve({
+          data: cachedData,
+          status: 200,
+          statusText: 'OK',
+          headers: {},
+          config,
+          fromCache: true,
+        })
     }
   }
   
@@ -89,8 +92,10 @@ api.interceptors.response.use(
   },
   async (err) => {
     const original = err.config
-    // Retry logic for failed requests (helps with unstable mobile connections)
-    if (!original._retry && err.code !== 'ECONNABORTED') {
+    // Ne tenter un refresh de token que sur une vraie erreur d'authentification (401),
+    // pas sur n'importe quelle erreur réseau/serveur (évite un appel refresh inutile
+    // à chaque erreur, qui ralentissait l'appli sur mobile).
+    if (original && !original._retry && err.response?.status === 401) {
       original._retry = true
       const refresh =
         (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('refresh')) ||

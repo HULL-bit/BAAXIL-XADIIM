@@ -1,3 +1,4 @@
+from decimal import Decimal
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 
@@ -47,13 +48,18 @@ class CustomUser(AbstractUser):
     date_inscription = models.DateTimeField(auto_now_add=True)
     est_actif = models.BooleanField(default=True)
     numero_wave = models.CharField(max_length=50, blank=True)
-    numero_carte = models.CharField(max_length=50, blank=True)
+    numero_carte = models.CharField(max_length=50, blank=True, help_text='Numéro de carte membre')
+    numero_cni = models.CharField(max_length=50, blank=True, verbose_name="Numéro de carte d'identité")
 
     # Informations personnelles
     sexe = models.CharField(max_length=1, choices=SEXE_CHOICES, blank=True)
     profession = models.CharField(max_length=100, blank=True)
     categorie = models.CharField(max_length=20, choices=CATEGORIE_CHOICES, default='professionnel')
     groupe_sanguin = models.CharField(max_length=3, blank=True, choices=GROUPE_SANGUIN_CHOICES)
+    annee_naissance = models.PositiveIntegerField(null=True, blank=True)
+
+    # Assignation financière
+    montant_cotisation = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('1000.00'), help_text='Montant de la cotisation mensuelle assignée à ce membre')
 
     # Champs spécifiques Jewrin
     specialite = models.CharField(max_length=100, blank=True)

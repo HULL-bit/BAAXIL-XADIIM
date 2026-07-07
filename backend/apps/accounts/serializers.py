@@ -43,11 +43,12 @@ class UserSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name',
             'telephone', 'adresse', 'sexe', 'profession', 'categorie',
-            'groupe_sanguin',
+            'groupe_sanguin', 'annee_naissance',
             'role', 'role_display', 'photo',
             'regroupement', 'regroupement_nom', 'section', 'section_nom',
             'sous_section', 'sous_section_label', 'dahira', 'dahira_nom',
-            'date_inscription', 'est_actif', 'numero_wave', 'numero_carte',
+            'date_inscription', 'est_actif', 'numero_wave', 'numero_carte', 'numero_cni',
+            'montant_cotisation',
             'specialite', 'biographie',
             'cotisations_payees', 'chapitres_lus', 'evenements_participes',
         ]
@@ -56,6 +57,9 @@ class UserSerializer(serializers.ModelSerializer):
 
 class UserCreateSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
+    # L'email n'est pas obligatoire pour s'inscrire (beaucoup de membres n'en ont pas) ;
+    # explicite ici pour ne pas dépendre du comportement implicite du modèle.
+    email = serializers.EmailField(required=False, allow_blank=True)
 
     def validate_categorie(self, value):
         """Normaliser et valider la catégorie"""
@@ -83,8 +87,8 @@ class UserCreateSerializer(serializers.ModelSerializer):
         fields = [
             'username', 'email', 'password', 'first_name', 'last_name',
             'telephone', 'adresse', 'sexe', 'profession', 'categorie',
-            'groupe_sanguin',
-            'role', 'numero_wave', 'numero_carte',
+            'groupe_sanguin', 'annee_naissance',
+            'role', 'numero_wave', 'numero_carte', 'numero_cni', 'montant_cotisation',
             'regroupement', 'section', 'sous_section', 'dahira',
             'specialite', 'biographie',
         ]
@@ -158,20 +162,22 @@ class UserMeSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name',
             'telephone', 'adresse', 'sexe', 'profession', 'categorie',
-            'groupe_sanguin',
+            'groupe_sanguin', 'annee_naissance',
             'role', 'role_display', 'photo',
             'photo_updated_at',
             'regroupement', 'regroupement_nom',
             'section', 'section_nom',
             'sous_section', 'sous_section_label',
             'dahira', 'dahira_nom',
-            'date_inscription', 'est_actif', 'numero_wave', 'numero_carte',
+            'date_inscription', 'est_actif', 'numero_wave', 'numero_carte', 'numero_cni',
+            'montant_cotisation',
             'specialite', 'biographie',
             'cotisations_payees', 'chapitres_lus', 'evenements_participes',
         ]
         read_only_fields = [
             'id', 'username', 'role', 'role_display', 'photo_updated_at', 'date_inscription',
             'est_actif', 'cotisations_payees', 'chapitres_lus', 'evenements_participes',
+            'montant_cotisation',
         ]
 
 

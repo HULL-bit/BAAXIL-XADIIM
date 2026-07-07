@@ -1,4 +1,4 @@
-from rest_framework import generics, status
+from rest_framework import generics, status, filters
 from rest_framework.decorators import api_view, permission_classes, parser_classes
 from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
@@ -7,6 +7,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth import get_user_model
 from django.utils import timezone
+from django_filters.rest_framework import DjangoFilterBackend
 
 from .serializers import UserSerializer, UserCreateSerializer, UserMeSerializer, BadgeSerializer, AttributionBadgeSerializer
 from .models import AttributionBadge
@@ -107,7 +108,9 @@ class UserList(generics.ListAPIView):
     queryset = User.objects.filter(is_active=True).order_by('-date_inscription')
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated, IsAdminRoleOrStaff]
-    filterset_fields = ['role', 'est_actif']
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ['role', 'est_actif', 'sexe', 'categorie']
+    search_fields = ['first_name', 'last_name', 'username', 'telephone', 'numero_carte', 'numero_cni']
 
     def get_queryset(self):
         # Optimize queries with select_related for foreign keys

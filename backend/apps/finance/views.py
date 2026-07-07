@@ -290,6 +290,60 @@ class CotisationMensuelleViewSet(viewsets.ModelViewSet):
         cotisation.save(update_fields=['reference_wave', 'mode_paiement'])
         return Response(CotisationMensuelleSerializer(cotisation).data)
 
+    @action(detail=False, methods=['post'], permission_classes=[IsAdminOrJewrinFinance])
+    def generer(self, request):
+        """
+        Génère automatiquement les cotisations mensuelles de tous les membres actifs
+        pour un mois/année donnés, en utilisant le montant_cotisation assigné à chaque membre.
+        Idempotent : relancer pour un mois déjà généré ne crée pas de doublons
+        (unique_together membre/mois/annee/type_cotisation).
+        Body : {"mois": 1-12, "annee": ex. 2026}
+        """
+        from datetime import date
+        from django.contrib.auth import get_user_model
+
+        try:
+            mois = int(request.data.get('mois'))
+            annee = int(request.data.get('annee'))
+        except (TypeError, ValueError):
+            return Response({'detail': 'mois et annee sont requis (entiers).'}, status=status.HTTP_400_BAD_REQUEST)
+        if not (1 <= mois <= 12):
+            return Response({'detail': 'mois doit être entre 1 et 12.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        User = get_user_model()
+        jour_echeance = 5
+        parametres = ParametresFinanciers.objects.first()
+        if parametres:
+            jour_echeance = parametres.jour_echeance_cotisation
+
+        membres = User.objects.filter(is_active=True, est_actif=True)
+        created = 0
+        already_existing = 0
+        for membre in membres:
+            _, was_created = CotisationMensuelle.objects.get_or_create(
+                membre=membre,
+                mois=mois,
+                annee=annee,
+                type_cotisation='mensualite',
+                defaults={
+                    'montant': membre.montant_cotisation,
+                    'date_echeance': date(annee, mois, min(jour_echeance, 28)),
+                    'statut': 'en_attente',
+                },
+            )
+            if was_created:
+                created += 1
+            else:
+                already_existing += 1
+
+        return Response({
+            'mois': mois,
+            'annee': annee,
+            'total_membres': membres.count(),
+            'created': created,
+            'already_existing': already_existing,
+        })
+
 
 class LeveeFondsViewSet(viewsets.ModelViewSet):
     queryset = LeveeFonds.objects.select_related('cree_par').filter(statut='active').order_by('-date_creation')
