@@ -10,7 +10,7 @@ import {
   Tooltip,
   useMediaQuery,
   useTheme,
-  SwipeableDrawer,
+  Drawer,
 } from '@mui/material'
 import { ChevronLeft, ChevronRight, Close, Home as HomeIcon } from '@mui/icons-material'
 import {
@@ -184,7 +184,18 @@ function MenuItemBtn({ item, selected, collapsed, onNavigate, onClose }) {
       component={isAccueil ? RouterLink : 'div'}
       to={isAccueil ? item.path : undefined}
       selected={!isAccueil && selected}
-      onClick={isAccueil ? () => onClose?.() : () => { onNavigate(item.path); onClose?.(); }}
+      onClick={
+        isAccueil
+          ? () => onClose?.()
+          : () => {
+              // Fermer le tiroir d'abord, puis naviguer au tick suivant : si les deux
+              // surviennent dans le même rendu, la transition de fermeture du Drawer
+              // est interrompue par le changement de route et le fond (backdrop) reste
+              // bloqué à l'écran, rendant la page entière non cliquable sur mobile.
+              onClose?.()
+              setTimeout(() => onNavigate(item.path), 0)
+            }
+      }
       href={undefined}
       sx={{
         borderRadius: 2,
@@ -388,11 +399,12 @@ export default function Sidebar({ open, onClose, collapsed, onToggleCollapse }) 
 
   if (isMobile) {
     return (
-      <SwipeableDrawer
+      <Drawer
         anchor="left"
+        variant="temporary"
         open={open}
         onClose={onClose}
-        onOpen={() => {}}
+        ModalProps={{ keepMounted: true }}
         sx={{
           '& .MuiDrawer-paper': {
             width: mobileWidth,
@@ -411,7 +423,7 @@ export default function Sidebar({ open, onClose, collapsed, onToggleCollapse }) 
         }}
       >
         {sidebarContent}
-      </SwipeableDrawer>
+      </Drawer>
     )
   }
 

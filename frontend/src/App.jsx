@@ -1,6 +1,7 @@
 import { Suspense, lazy } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
+import ErrorBoundary from './components/ErrorBoundary'
 
 const Layout = lazy(() => import('./components/layout/Layout'))
 const Accueil = lazy(() => import('./components/accueil/Accueil'))
@@ -103,8 +104,10 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <Suspense fallback={null}>
-      <AppRoutes />
-    </Suspense>
+    <ErrorBoundary>
+      <Suspense fallback={null}>
+        <AppRoutes />
+      </Suspense>
+    </ErrorBoundary>
   )
 }

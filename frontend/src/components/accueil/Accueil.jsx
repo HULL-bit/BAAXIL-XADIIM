@@ -300,7 +300,7 @@ export default function Accueil() {
         >
           {CAROUSEL_SLIDES.map((slide, i) => (
             <Box
-              key={slide.img}
+              key={i}
               sx={{
                 position: 'absolute',
                 top: 0,
