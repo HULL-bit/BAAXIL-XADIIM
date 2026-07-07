@@ -3,6 +3,7 @@ from django.http import HttpResponse
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from . import views
+from .export_views import export_hierarchie_view
 
 router = DefaultRouter()
 router.register(r'cotisations', views.CotisationMensuelleViewSet)
@@ -78,5 +79,6 @@ def _rapport_cotisations_wrapper(req):
 
 urlpatterns = [
     path('finance/export-rapport-cotisations/', _rapport_cotisations_wrapper),
+    path('finance/export-rapport-hierarchie/', export_hierarchie_view),
     path('finance/', include(router.urls)),
 ]

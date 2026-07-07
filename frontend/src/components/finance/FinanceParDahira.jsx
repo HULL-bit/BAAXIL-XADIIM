@@ -23,7 +23,7 @@ import {
   Alert,
   CircularProgress,
 } from '@mui/material'
-import { Add, Groups, AccountBalance, MonetizationOn, TrendingUp, HourglassEmpty } from '@mui/icons-material'
+import { Add, Groups, AccountBalance, MonetizationOn, TrendingUp, HourglassEmpty, Download, PictureAsPdf } from '@mui/icons-material'
 import api, { clearCache } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 
@@ -63,6 +63,9 @@ export default function FinanceParDahira() {
   const [cotisations, setCotisations] = useState([])
   const [stats, setStats] = useState(null)
   const [globalStats, setGlobalStats] = useState(null)
+  const [exportAnnee, setExportAnnee] = useState(new Date().getFullYear())
+  const [exportMois, setExportMois] = useState('')
+  const [exportingFormat, setExportingFormat] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState({ type: '', text: '' })
   const [openAssign, setOpenAssign] = useState(false)
@@ -176,6 +179,27 @@ export default function FinanceParDahira() {
   const handleSectionChange = (v) => {
     setSelectedSectionId(v)
     setSelectedDahiraId('')
+  }
+
+  const handleExportCotisations = async (format) => {
+    setExportingFormat(format)
+    setMessage({ type: '', text: '' })
+    try {
+      const params = { format, annee: exportAnnee }
+      if (exportMois) params.mois = exportMois
+      const { data } = await api.get('/finance/export-rapport-cotisations/', { params, responseType: 'blob' })
+      const ext = format === 'pdf' ? 'pdf' : 'xlsx'
+      const url = window.URL.createObjectURL(new Blob([data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `rapport_cotisations_${exportAnnee}${exportMois ? `_${exportMois}` : ''}.${ext}`)
+      link.click()
+      window.URL.revokeObjectURL(url)
+    } catch {
+      setMessage({ type: 'error', text: "Erreur lors de l'export du rapport." })
+    } finally {
+      setExportingFormat('')
+    }
   }
 
   const handleOpenAssign = () => {
@@ -417,6 +441,51 @@ export default function FinanceParDahira() {
           </Grid>
         </Grid>
       )}
+
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3, flexWrap: 'wrap' }}>
+        <Typography variant="body2" sx={{ color: COLORS.vertFonce, fontWeight: 600 }}>Export du rapport des cotisations :</Typography>
+        <TextField
+          select
+          size="small"
+          label="Année"
+          value={exportAnnee}
+          onChange={(e) => setExportAnnee(Number(e.target.value))}
+          sx={{ minWidth: 110 }}
+        >
+          {[new Date().getFullYear(), new Date().getFullYear() - 1, new Date().getFullYear() - 2].map((y) => (
+            <MenuItem key={y} value={y}>{y}</MenuItem>
+          ))}
+        </TextField>
+        <TextField
+          select
+          size="small"
+          label="Mois"
+          value={exportMois}
+          onChange={(e) => setExportMois(e.target.value)}
+          sx={{ minWidth: 150 }}
+        >
+          <MenuItem value="">Tous les mois</MenuItem>
+          {MOIS.map((m) => <MenuItem key={m.value} value={m.value}>{m.label}</MenuItem>)}
+        </TextField>
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={exportingFormat === 'excel' ? <CircularProgress size={16} /> : <Download />}
+          onClick={() => handleExportCotisations('excel')}
+          disabled={!!exportingFormat}
+        >
+          Export Excel
+        </Button>
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={exportingFormat === 'pdf' ? <CircularProgress size={16} /> : <PictureAsPdf />}
+          onClick={() => handleExportCotisations('pdf')}
+          disabled={!!exportingFormat}
+        >
+          Export PDF
+        </Button>
+      </Box>
 
       {stats && (
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>

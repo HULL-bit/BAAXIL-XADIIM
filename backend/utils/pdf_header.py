@@ -6,7 +6,7 @@ from pathlib import Path
 from django.conf import settings
 
 DAARA_NOM = "Ahibahil Khadim"
-DAARA_SOUS_TITRE = "Wakeur Serigne Moustapha Salihou"
+DAARA_SOUS_TITRE = "Wakeur Serigne Mnacke Madina"
 
 
 def get_logo_path():
@@ -48,13 +48,13 @@ def build_pdf_header(title_report, periode_str):
         'DaaraNom',
         parent=styles['Title'],
         fontSize=14,
-        textColor=colors.HexColor('#2D5F3F'),
+        textColor=colors.HexColor('#0F4D71'),
         alignment=0,
         spaceAfter=2,
     )
 
     if logo_img:
-        txt = Paragraph(f"<b>{DAARA_NOM}</b><br/><font size='9' color='#1e4029'>{DAARA_SOUS_TITRE}</font>", nom_style)
+        txt = Paragraph(f"<b>{DAARA_NOM}</b><br/><font size='9' color='#2DA9E1'>{DAARA_SOUS_TITRE}</font>", nom_style)
         tbl = Table([[logo_img, txt]], colWidths=[3*cm, 12*cm])
         tbl.setStyle(TableStyle([
             ('ALIGN', (0, 0), (0, 0), 'CENTER'),
@@ -63,11 +63,11 @@ def build_pdf_header(title_report, periode_str):
         elements.append(tbl)
     else:
         elements.append(Paragraph(f"<b>{DAARA_NOM}</b>", nom_style))
-        elements.append(Paragraph(f"<font size='9' color='#1e4029'>{DAARA_SOUS_TITRE}</font>", styles['Normal']))
+        elements.append(Paragraph(f"<font size='9' color='#2DA9E1'>{DAARA_SOUS_TITRE}</font>", styles['Normal']))
 
     elements.append(Spacer(1, 0.4*cm))
     hr = Table([['']], colWidths=[18*cm])
-    hr.setStyle(TableStyle([('LINEABOVE', (0, 0), (-1, 0), 1, colors.HexColor('#C9A961'))]))
+    hr.setStyle(TableStyle([('LINEABOVE', (0, 0), (-1, 0), 1, colors.HexColor('#2DA9E1'))]))
     elements.append(hr)
     elements.append(Spacer(1, 0.4*cm))
     elements.append(Paragraph(f"<b>{title_report}</b>", styles['Heading1']))

@@ -2,6 +2,7 @@ from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 from . import views
 from .views import CustomTokenObtainPairView
+from .export_views import export_membres_view
 
 urlpatterns = [
     path('token/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
@@ -13,4 +14,5 @@ urlpatterns = [
     path('users/<int:pk>/', views.UserDetail.as_view()),
     path('admin/statistiques/', views.stats_admin),
     path('me/badges/', views.mes_badges),
+    path('export-membres/', export_membres_view),
 ]

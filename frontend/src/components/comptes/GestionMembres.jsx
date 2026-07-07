@@ -28,7 +28,7 @@ import {
   TableRow,
   Paper,
 } from '@mui/material'
-import { Add, Edit, Delete, Visibility, VisibilityOff, Search, FilterList, RestartAlt, People, Man, Woman, CheckCircle } from '@mui/icons-material'
+import { Add, Edit, Delete, Visibility, VisibilityOff, Search, FilterList, RestartAlt, People, Man, Woman, CheckCircle, Download, PictureAsPdf } from '@mui/icons-material'
 import api from '../../services/api'
 import { getMediaUrl } from '../../services/media'
 import { colors } from '../../styles/theme'
@@ -135,6 +135,31 @@ export default function GestionMembres() {
     if (filters.section) params.section = filters.section
     if (filters.dahira) params.dahira = filters.dahira
     return params
+  }
+
+  const [exportingFormat, setExportingFormat] = useState('')
+
+  const handleExport = async (format) => {
+    setExportingFormat(format)
+    setMessage({ type: '', text: '' })
+    try {
+      const { page, page_size, ...filterParams } = buildParams(1)
+      const { data } = await api.get('/auth/export-membres/', {
+        params: { ...filterParams, format },
+        responseType: 'blob',
+      })
+      const ext = format === 'pdf' ? 'pdf' : 'xlsx'
+      const url = window.URL.createObjectURL(new Blob([data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `rapport_membres.${ext}`)
+      link.click()
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      setMessage({ type: 'error', text: "Erreur lors de l'export du rapport." })
+    } finally {
+      setExportingFormat('')
+    }
   }
 
   const runSearch = async (targetPage = 1) => {
@@ -367,13 +392,29 @@ export default function GestionMembres() {
               utilisez les filtres pour rechercher, puis « Rechercher »
             </Typography>
           </Box>
-          <Box sx={{ display: 'flex', gap: 1 }}>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             <Button
               variant="outlined"
               startIcon={<FilterList />}
               onClick={() => setShowFilters((v) => !v)}
             >
               Filtres
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={exportingFormat === 'excel' ? <CircularProgress size={16} /> : <Download />}
+              onClick={() => handleExport('excel')}
+              disabled={!!exportingFormat}
+            >
+              Export Excel
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={exportingFormat === 'pdf' ? <CircularProgress size={16} /> : <PictureAsPdf />}
+              onClick={() => handleExport('pdf')}
+              disabled={!!exportingFormat}
+            >
+              Export PDF
             </Button>
             <Button
               variant="contained"

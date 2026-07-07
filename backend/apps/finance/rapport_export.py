@@ -5,7 +5,126 @@ Statistiques globales, par membre (taux, montants), somme totale collectée, etc
 from decimal import Decimal
 from collections import defaultdict
 
+from django.db.models import Count
+
 from .models import CotisationMensuelle
+
+
+def build_hierarchie_data(annee=None, mois=None):
+    """
+    Synthèse Regroupement → Section → Sous-section → Dahira (montants, % payé,
+    nb cotisations, nb membres). Utilisée à la fois par l'action stats_hierarchie
+    et par l'export PDF/Excel, pour ne pas dupliquer la logique d'agrégation.
+
+    Une requête par table (pas une par section/sous-section/dahira) : avec les
+    vraies données (~25 dahiras), une boucle avec un .filter()/.count() par
+    niveau ferait des dizaines de requêtes séquentielles, très lent en pratique
+    sur ce réseau.
+    """
+    from django.contrib.auth import get_user_model
+    from apps.organisation.models import Regroupement, Section, SousSection, Dahira
+
+    User = get_user_model()
+
+    qs = CotisationMensuelle.objects.select_related('membre').all()
+    if annee:
+        qs = qs.filter(annee=int(annee))
+    if mois:
+        qs = qs.filter(mois=int(mois))
+
+    by_reg, by_sec, by_ss, by_dahira = {}, {}, {}, {}
+    for c in qs:
+        m = c.membre
+        mt = float(c.montant)
+        mp = mt if c.statut == 'payee' else 0
+        for key, d in [(m.regroupement_id, by_reg), (m.section_id, by_sec), (m.sous_section_id, by_ss), (m.dahira_id, by_dahira)]:
+            if key is None:
+                continue
+            if key not in d:
+                d[key] = {'montant_total': 0, 'montant_paye': 0, 'nb': 0}
+            d[key]['montant_total'] += mt
+            d[key]['montant_paye'] += mp
+            d[key]['nb'] += 1
+
+    def pct(mt, mp):
+        return round((mp / mt * 100), 2) if mt else 0
+
+    all_dahiras = list(Dahira.objects.all().order_by('nom'))
+    all_sous_sections = list(SousSection.objects.select_related('section').order_by('sexe'))
+    all_sections = list(Section.objects.all().order_by('nom'))
+
+    nb_membres_par_dahira = {
+        row['dahira_id']: row['nb']
+        for row in User.objects.filter(is_active=True, dahira_id__isnull=False)
+        .values('dahira_id')
+        .annotate(nb=Count('id'))
+    }
+
+    dahiras_par_sous_section = {}
+    for d in all_dahiras:
+        dahiras_par_sous_section.setdefault(d.sous_section_id, []).append(d)
+    sous_sections_par_section = {}
+    for ss in all_sous_sections:
+        sous_sections_par_section.setdefault(ss.section_id, []).append(ss)
+    sections_par_regroupement = {}
+    for s in all_sections:
+        sections_par_regroupement.setdefault(s.regroupement_id, []).append(s)
+
+    def build_dahiras(sous_section_id):
+        return [
+            {
+                'id': d.id,
+                'nom': d.nom,
+                'montant_total': round(by_dahira.get(d.id, {}).get('montant_total', 0), 2),
+                'montant_paye': round(by_dahira.get(d.id, {}).get('montant_paye', 0), 2),
+                'pct_paye': pct(by_dahira.get(d.id, {}).get('montant_total', 0), by_dahira.get(d.id, {}).get('montant_paye', 0)),
+                'nb_cotisations': by_dahira.get(d.id, {}).get('nb', 0),
+                'nb_membres': nb_membres_par_dahira.get(d.id, 0),
+            }
+            for d in dahiras_par_sous_section.get(sous_section_id, [])
+        ]
+
+    def build_sous_sections(section_id):
+        return [
+            {
+                'id': ss.id,
+                'label': str(ss),
+                'montant_total': round(by_ss.get(ss.id, {}).get('montant_total', 0), 2),
+                'montant_paye': round(by_ss.get(ss.id, {}).get('montant_paye', 0), 2),
+                'pct_paye': pct(by_ss.get(ss.id, {}).get('montant_total', 0), by_ss.get(ss.id, {}).get('montant_paye', 0)),
+                'nb_cotisations': by_ss.get(ss.id, {}).get('nb', 0),
+                'dahiras': build_dahiras(ss.id),
+            }
+            for ss in sous_sections_par_section.get(section_id, [])
+        ]
+
+    def build_sections(reg_id):
+        return [
+            {
+                'id': s.id,
+                'nom': s.nom,
+                'montant_total': round(by_sec.get(s.id, {}).get('montant_total', 0), 2),
+                'montant_paye': round(by_sec.get(s.id, {}).get('montant_paye', 0), 2),
+                'pct_paye': pct(by_sec.get(s.id, {}).get('montant_total', 0), by_sec.get(s.id, {}).get('montant_paye', 0)),
+                'nb_cotisations': by_sec.get(s.id, {}).get('nb', 0),
+                'sous_sections': build_sous_sections(s.id),
+            }
+            for s in sections_par_regroupement.get(reg_id, [])
+        ]
+
+    return [
+        {
+            'id': r.id,
+            'nom': r.nom,
+            'code': getattr(r, 'code', ''),
+            'montant_total': round(by_reg.get(r.id, {}).get('montant_total', 0), 2),
+            'montant_paye': round(by_reg.get(r.id, {}).get('montant_paye', 0), 2),
+            'pct_paye': pct(by_reg.get(r.id, {}).get('montant_total', 0), by_reg.get(r.id, {}).get('montant_paye', 0)),
+            'nb_cotisations': by_reg.get(r.id, {}).get('nb', 0),
+            'sections': build_sections(r.id),
+        }
+        for r in Regroupement.objects.all().order_by('nom')
+    ]
 
 
 def _get_queryset(date_debut=None, date_fin=None, annee=None, mois=None):
@@ -231,7 +350,7 @@ def export_rapport_pdf(date_debut=None, date_fin=None, annee=None, mois=None):
     ]
     stats_table = Table([['Indicateur', 'Valeur']] + stats_data, colWidths=[6*cm, 4*cm])
     stats_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2D5F3F')),
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0F4D71')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
     ]))
@@ -249,7 +368,7 @@ def export_rapport_pdf(date_debut=None, date_fin=None, annee=None, mois=None):
                    f"{s['taux_cotisation']}%"] for s in stats_membres]
         mt = Table(m_headers + m_data, colWidths=[5*cm, 2*cm, 2*cm, 3*cm, 3*cm, 2*cm])
         mt.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2D5F3F')),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0F4D71')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('FONTSIZE', (0, 0), (-1, 0), 9),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
@@ -257,6 +376,149 @@ def export_rapport_pdf(date_debut=None, date_fin=None, annee=None, mois=None):
         elements.append(mt)
     else:
         elements.append(Paragraph('Aucune cotisation.', styles['Normal']))
+
+    doc.build(elements)
+    buf.seek(0)
+    return buf
+
+
+def export_hierarchie_excel(annee=None, mois=None):
+    """Export Excel de la synthèse hiérarchique (Regroupement → Section → Sous-section → Dahira)."""
+    try:
+        import openpyxl
+        from openpyxl.styles import Font, Border, Side, PatternFill, Alignment
+        from openpyxl.utils import get_column_letter
+    except ImportError:
+        return None
+
+    regroupements = build_hierarchie_data(annee, mois)
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Synthèse hiérarchique'
+
+    periode_str = f"Année {annee}" + (f" - Mois {mois}" if mois else "") if annee else "Toutes périodes"
+    ws.cell(row=1, column=1, value='Synthèse financière hiérarchique — Ahibahil Khadim').font = Font(bold=True, size=14, color='0F4D71')
+    ws.cell(row=2, column=1, value=f"Période : {periode_str}")
+
+    headers = ['Niveau', 'Nom', 'Montant assigné (FCFA)', 'Montant payé (FCFA)', '% payé', 'Nb cotisations', 'Nb membres']
+    header_row = 4
+    header_font = Font(bold=True, color='FFFFFF')
+    header_fill = PatternFill(start_color='0F4D71', end_color='0F4D71', fill_type='solid')
+    thin = Side(style='thin', color='CCCCCC')
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    for col, h in enumerate(headers, 1):
+        c = ws.cell(row=header_row, column=col, value=h)
+        c.font = header_font
+        c.fill = header_fill
+        c.alignment = Alignment(horizontal='center')
+        c.border = border
+
+    level_fills = {
+        'Regroupement': PatternFill(start_color='D6EAF8', end_color='D6EAF8', fill_type='solid'),
+        'Section': PatternFill(start_color='EBF5FB', end_color='EBF5FB', fill_type='solid'),
+        'Sous-section': PatternFill(start_color='FFFFFF', end_color='FFFFFF', fill_type='solid'),
+        'Dahira': PatternFill(start_color='FCF3CF', end_color='FCF3CF', fill_type='solid'),
+    }
+    row = header_row + 1
+    for reg in regroupements:
+        ws.append(['Regroupement', reg['nom'], reg['montant_total'], reg['montant_paye'], f"{reg['pct_paye']}%", reg['nb_cotisations'], ''])
+        for col in range(1, 8):
+            ws.cell(row=row, column=col).fill = level_fills['Regroupement']
+            ws.cell(row=row, column=col).font = Font(bold=True)
+            ws.cell(row=row, column=col).border = border
+        row += 1
+        for sec in reg['sections']:
+            ws.append(['Section', f"  {sec['nom']}", sec['montant_total'], sec['montant_paye'], f"{sec['pct_paye']}%", sec['nb_cotisations'], ''])
+            for col in range(1, 8):
+                ws.cell(row=row, column=col).fill = level_fills['Section']
+                ws.cell(row=row, column=col).border = border
+            row += 1
+            for ss in sec['sous_sections']:
+                ws.append(['Sous-section', f"    {ss['label']}", ss['montant_total'], ss['montant_paye'], f"{ss['pct_paye']}%", ss['nb_cotisations'], ''])
+                for col in range(1, 8):
+                    ws.cell(row=row, column=col).fill = level_fills['Sous-section']
+                    ws.cell(row=row, column=col).border = border
+                row += 1
+                for d in ss['dahiras']:
+                    ws.append(['Dahira', f"      {d['nom']}", d['montant_total'], d['montant_paye'], f"{d['pct_paye']}%", d['nb_cotisations'], d['nb_membres']])
+                    for col in range(1, 8):
+                        ws.cell(row=row, column=col).fill = level_fills['Dahira']
+                        ws.cell(row=row, column=col).border = border
+                    row += 1
+
+    widths = [14, 32, 20, 20, 10, 16, 12]
+    for col, w in enumerate(widths, 1):
+        ws.column_dimensions[get_column_letter(col)].width = w
+    ws.freeze_panes = f'A{header_row + 1}'
+
+    from io import BytesIO
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf
+
+
+def export_hierarchie_pdf(annee=None, mois=None):
+    """Export PDF de la synthèse hiérarchique (Regroupement → Section → Sous-section → Dahira)."""
+    try:
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.lib.units import cm
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    except ImportError:
+        return None
+
+    regroupements = build_hierarchie_data(annee, mois)
+
+    from io import BytesIO
+    buf = BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, rightMargin=1.5*cm, leftMargin=1.5*cm, topMargin=1.5*cm, bottomMargin=1.5*cm)
+    styles = getSampleStyleSheet()
+    elements = []
+
+    periode_str = f"Année {annee}" + (f" - Mois {mois}" if mois else "") if annee else "Toutes périodes"
+    from utils.pdf_header import build_pdf_header
+    elements.extend(build_pdf_header('Synthèse financière hiérarchique', periode_str))
+
+    level_colors = {
+        'reg': colors.HexColor('#0F4D71'),
+        'sec': colors.HexColor('#D6EAF8'),
+        'ss': colors.white,
+        'dahira': colors.HexColor('#FCF3CF'),
+    }
+    rows = [['Nom', 'Montant assigné', 'Montant payé', '% payé', 'Cotisations']]
+    row_styles = []
+    idx = 1
+    for reg in regroupements:
+        rows.append([reg['nom'], f"{reg['montant_total']:,.0f}", f"{reg['montant_paye']:,.0f}", f"{reg['pct_paye']}%", str(reg['nb_cotisations'])])
+        row_styles.append(('BACKGROUND', (0, idx), (-1, idx), level_colors['reg']))
+        row_styles.append(('TEXTCOLOR', (0, idx), (-1, idx), colors.whitesmoke))
+        row_styles.append(('FONTNAME', (0, idx), (-1, idx), 'Helvetica-Bold'))
+        idx += 1
+        for sec in reg['sections']:
+            rows.append([f"    {sec['nom']}", f"{sec['montant_total']:,.0f}", f"{sec['montant_paye']:,.0f}", f"{sec['pct_paye']}%", str(sec['nb_cotisations'])])
+            row_styles.append(('BACKGROUND', (0, idx), (-1, idx), level_colors['sec']))
+            idx += 1
+            for ss in sec['sous_sections']:
+                rows.append([f"        {ss['label']}", f"{ss['montant_total']:,.0f}", f"{ss['montant_paye']:,.0f}", f"{ss['pct_paye']}%", str(ss['nb_cotisations'])])
+                idx += 1
+                for d in ss['dahiras']:
+                    rows.append([f"            {d['nom']}", f"{d['montant_total']:,.0f}", f"{d['montant_paye']:,.0f}", f"{d['pct_paye']}%", str(d['nb_cotisations'])])
+                    row_styles.append(('BACKGROUND', (0, idx), (-1, idx), level_colors['dahira']))
+                    idx += 1
+
+    t = Table(rows, colWidths=[7*cm, 3.5*cm, 3.5*cm, 2*cm, 2.7*cm], repeatRows=1)
+    base_style = [
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2DA9E1')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('FONTSIZE', (0, 0), (-1, -1), 8.5),
+        ('GRID', (0, 0), (-1, -1), 0.4, colors.grey),
+        ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+    ] + row_styles
+    t.setStyle(TableStyle(base_style))
+    elements.append(t)
 
     doc.build(elements)
     buf.seek(0)

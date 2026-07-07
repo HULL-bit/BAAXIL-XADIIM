@@ -5,6 +5,7 @@ import {
   Paper,
   TextField,
   MenuItem,
+  Button,
   Accordion,
   AccordionSummary,
   AccordionDetails,
@@ -15,8 +16,9 @@ import {
   TableRow,
   CircularProgress,
   Chip,
+  Alert,
 } from '@mui/material'
-import { ExpandMore, AccountTree, TrendingUp } from '@mui/icons-material'
+import { ExpandMore, AccountTree, TrendingUp, Download, PictureAsPdf } from '@mui/icons-material'
 import api from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 
@@ -29,6 +31,29 @@ export default function FinanceHierarchie() {
   const [loading, setLoading] = useState(true)
   const [annee, setAnnee] = useState(new Date().getFullYear())
   const [mois, setMois] = useState('')
+  const [exportingFormat, setExportingFormat] = useState('')
+  const [exportError, setExportError] = useState('')
+
+  const handleExport = async (format) => {
+    setExportingFormat(format)
+    setExportError('')
+    try {
+      const params = { annee, format }
+      if (mois) params.mois = mois
+      const { data } = await api.get('/finance/export-rapport-hierarchie/', { params, responseType: 'blob' })
+      const ext = format === 'pdf' ? 'pdf' : 'xlsx'
+      const url = window.URL.createObjectURL(new Blob([data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `synthese_hierarchique_${annee}${mois ? `_${mois}` : ''}.${ext}`)
+      link.click()
+      window.URL.revokeObjectURL(url)
+    } catch {
+      setExportError("Erreur lors de l'export du rapport.")
+    } finally {
+      setExportingFormat('')
+    }
+  }
 
   useEffect(() => {
     if (!isAdmin) {
@@ -112,7 +137,25 @@ export default function FinanceHierarchie() {
             <MenuItem key={m.value} value={m.value}>{m.label}</MenuItem>
           ))}
         </TextField>
+        <Button
+          variant="outlined"
+          startIcon={exportingFormat === 'excel' ? <CircularProgress size={16} /> : <Download />}
+          onClick={() => handleExport('excel')}
+          disabled={!!exportingFormat}
+        >
+          Export Excel
+        </Button>
+        <Button
+          variant="outlined"
+          startIcon={exportingFormat === 'pdf' ? <CircularProgress size={16} /> : <PictureAsPdf />}
+          onClick={() => handleExport('pdf')}
+          disabled={!!exportingFormat}
+        >
+          Export PDF
+        </Button>
       </Box>
+
+      {exportError && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setExportError('')}>{exportError}</Alert>}
 
       {globalSummary && (
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
