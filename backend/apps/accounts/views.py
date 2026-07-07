@@ -109,7 +109,14 @@ class UserList(generics.ListAPIView):
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated, IsAdminRoleOrStaff]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    filterset_fields = ['role', 'est_actif', 'sexe', 'categorie']
+    filterset_fields = {
+        'role': ['exact'],
+        'est_actif': ['exact'],
+        'sexe': ['exact'],
+        'categorie': ['exact'],
+        'groupe_sanguin': ['exact'],
+        'profession': ['icontains'],
+    }
     search_fields = ['first_name', 'last_name', 'username', 'telephone', 'numero_carte', 'numero_cni']
 
     def get_queryset(self):

@@ -103,11 +103,11 @@ export default function FinanceParDahira() {
       return
     }
     setLoading(true)
-    const params = {}
+    const params = { page_size: 500 }
     if (selectedDahiraId) params.dahira = selectedDahiraId
     else if (selectedSectionId) params.section = selectedSectionId
     else if (selectedRegroupementId) params.regroupement = selectedRegroupementId
-    
+
     // Use Promise.allSettled for better error handling and performance
     Promise.allSettled([
       api.get('/auth/users/', { params }).then(({ data }) => data.results || data || []),
@@ -193,7 +193,7 @@ export default function FinanceParDahira() {
       setMembresInDialog([])
       return
     }
-    api.get('/auth/users/', { params })
+    api.get('/auth/users/', { params: { ...params, page_size: 500 } })
       .then(({ data }) => setMembresInDialog(data.results || data || []))
       .catch(() => setMembresInDialog([]))
   }
@@ -301,7 +301,7 @@ export default function FinanceParDahira() {
       clearCache('/finance/cotisations')
       clearCache('/auth/users')
       if (hasFilter) {
-        const p = {}
+        const p = { page_size: 500 }
         if (selectedDahiraId) p.dahira = selectedDahiraId
         else if (selectedSectionId) p.section = selectedSectionId
         else if (selectedRegroupementId) p.regroupement = selectedRegroupementId

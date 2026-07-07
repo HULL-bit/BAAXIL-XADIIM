@@ -111,7 +111,8 @@ export default function ProgrammeKamil() {
     Object.keys(byKamil).forEach((k) => byKamil[k].sort((a, b) => a.numero - b.numero))
     setJukkisByKamil(byKamil)
   }).catch(() => setJukkisByKamil({}))
-  const loadMembres = () => api.get('/auth/users/').then(({ data }) => setMembres(data.results || data || [])).catch(() => setMembres([]))
+  // page_size élevé : liste utilisée pour un sélecteur d'assignation, pas de pagination pertinente ici.
+  const loadMembres = () => api.get('/auth/users/', { params: { page_size: 1000 } }).then(({ data }) => setMembres(data.results || data || [])).catch(() => setMembres([]))
 
   useEffect(() => {
     setLoading(true)

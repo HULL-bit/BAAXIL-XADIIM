@@ -4,6 +4,7 @@ import { Box, Card, CardContent, TextField, Button, Typography, Alert, Link, Ico
 import { Visibility, VisibilityOff } from '@mui/icons-material'
 import logo from '/logo.jpeg'
 import { useAuth } from '../../context/AuthContext'
+import { colors } from '../../styles/theme'
 
 export default function Login() {
   const navigate = useNavigate()
@@ -41,7 +42,7 @@ export default function Login() {
         sx={{
           maxWidth: 420,
           width: '100%',
-          borderLeft: '4px solid #2DA9E1',
+          borderLeft: `4px solid ${colors.vert}`,
           borderRadius: 3,
           overflow: 'hidden',
           boxShadow: '0 12px 48px rgba(45, 169, 225, 0.25)',
@@ -58,14 +59,14 @@ export default function Login() {
             <Typography
               variant="h4"
               className="title-script"
-              sx={{ mb: 0.5, color: '#2DA9E1' }}
+              sx={{ mb: 0.5, color: colors.vert }}
             >
               Ahibahil Khadim
             </Typography>
             <Typography
               variant="body1"
               className="subtitle-elegant"
-              sx={{ color: '#1A1A1A', fontSize: '1rem' }}
+              sx={{ color: colors.noir, fontSize: '1rem' }}
             >
               Connexion à la plateforme
             </Typography>
@@ -137,10 +138,10 @@ export default function Login() {
                 borderRadius: 2,
                 fontSize: '1rem',
                 fontWeight: 600,
-                background: 'linear-gradient(135deg, #2DA9E1 0%, #0F4D71 100%)',
+                background: `linear-gradient(135deg, ${colors.vert} 0%, ${colors.vertFonce} 100%)`,
                 boxShadow: '0 4px 14px rgba(15, 77, 113, 0.4)',
                 '&:hover': {
-                  background: 'linear-gradient(135deg, #0F4D71 0%, #2DA9E1 100%)',
+                  background: `linear-gradient(135deg, ${colors.vertFonce} 0%, ${colors.vert} 100%)`,
                   boxShadow: '0 6px 20px rgba(15, 77, 113, 0.45)',
                   transform: 'translateY(-1px)',
                 },
@@ -149,14 +150,14 @@ export default function Login() {
               {loading ? 'Connexion...' : 'Se connecter'}
             </Button>
           </form>
-          <Typography variant="body2" sx={{ color: '#1A1A1A', textAlign: 'center' }}>
+          <Typography variant="body2" sx={{ color: colors.noir, textAlign: 'center' }}>
             Pas de compte ?{' '}
-            <Link component={RouterLink} to="/register" underline="hover" sx={{ color: '#2DA9E1', fontWeight: 600 }}>
+            <Link component={RouterLink} to="/register" underline="hover" sx={{ color: colors.vert, fontWeight: 600 }}>
               S'inscrire
             </Link>
           </Typography>
-          <Typography variant="body2" sx={{ color: '#1A1A1A', textAlign: 'center', mt: 1 }}>
-            <Link component={RouterLink} to="/accueil" underline="hover" sx={{ color: '#2DA9E1' }}>
+          <Typography variant="body2" sx={{ color: colors.noir, textAlign: 'center', mt: 1 }}>
+            <Link component={RouterLink} to="/accueil" underline="hover" sx={{ color: colors.vert }}>
               ← Retour à l'accueil
             </Link>
           </Typography>
