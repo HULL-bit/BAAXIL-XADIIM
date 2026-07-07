@@ -183,8 +183,12 @@ export default function Evenements() {
           ) : (
             list.map((evt) => (
               <Grid item xs={12} sm={6} md={4} key={evt.id}>
-                <Card sx={{ borderLeft: `4px solid ${COLORS.or}`, borderRadius: 2 }}>
-                  {evt.image && <CardMedia component="img" height="140" image={getMediaUrl(evt.image) || evt.image} alt={evt.titre} />}
+                <Card className="img-fade-in" sx={{ borderLeft: `4px solid ${COLORS.or}`, borderRadius: 2, overflow: 'hidden' }}>
+                  {evt.image && (
+                    <Box className="img-zoom-wrap">
+                      <CardMedia className="img-zoom" component="img" loading="lazy" height="140" image={getMediaUrl(evt.image) || evt.image} alt={evt.titre} />
+                    </Box>
+                  )}
                   <CardContent>
                     <Chip label={evt.type_evenement_display || evt.type_evenement} size="small" sx={{ mb: 1, bgcolor: `${COLORS.or}30` }} />
                     <Typography variant="h6">{evt.titre}</Typography>

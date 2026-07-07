@@ -174,6 +174,11 @@ def stats_admin(request):
     # Aligné sur Gestion des membres : tous les utilisateurs actifs
     membres_actifs = CustomUser.objects.filter(is_active=True, est_actif=True).count()
     total_membres = CustomUser.objects.filter(is_active=True).count()
+    membres_hommes = CustomUser.objects.filter(is_active=True, sexe='M').count()
+    membres_femmes = CustomUser.objects.filter(is_active=True, sexe='F').count()
+    membres_eleves = CustomUser.objects.filter(is_active=True, categorie='eleve').count()
+    membres_etudiants = CustomUser.objects.filter(is_active=True, categorie='etudiant').count()
+    membres_professionnels = CustomUser.objects.filter(is_active=True, categorie='professionnel').count()
     # Cotisations du mois courant
     cotisations_total_ce_mois = CotisationMensuelle.objects.filter(annee=annee, mois=mois).count()
     cotisations_payees_ce_mois = CotisationMensuelle.objects.filter(
@@ -196,6 +201,11 @@ def stats_admin(request):
     return Response({
         'membres_actifs': membres_actifs,
         'total_membres': total_membres,
+        'membres_hommes': membres_hommes,
+        'membres_femmes': membres_femmes,
+        'membres_eleves': membres_eleves,
+        'membres_etudiants': membres_etudiants,
+        'membres_professionnels': membres_professionnels,
         'cotisations_payees_ce_mois': cotisations_payees_ce_mois,
         'cotisations_total_ce_mois': cotisations_total_ce_mois,
         'taux_paiement_cotisations_ce_mois': round(taux_paiement_cotisations_ce_mois, 2),

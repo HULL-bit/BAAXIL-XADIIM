@@ -11,6 +11,7 @@ import {
   CardMedia,
   Link,
   IconButton,
+  Dialog,
   useTheme,
   useMediaQuery,
 } from '@mui/material'
@@ -58,6 +59,7 @@ export default function Accueil() {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const isSmallMobile = useMediaQuery(theme.breakpoints.down('sm'))
   const [carouselIndex, setCarouselIndex] = useState(0)
+  const [previewImage, setPreviewImage] = useState(null)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   useEffect(() => {
@@ -760,6 +762,7 @@ export default function Accueil() {
             </Grid>
             <Grid item xs={12} md={5}>
               <Card
+                className="img-fade-in"
                 sx={{
                   borderRadius: 3,
                   overflow: 'hidden',
@@ -770,6 +773,7 @@ export default function Accueil() {
               >
                 <CardMedia
                   component="img"
+                  loading="lazy"
                   height="260"
                   image="/images/ahibahil/sections.jpeg"
                   alt="Moments de transmission à la Daara"
@@ -814,14 +818,19 @@ export default function Accueil() {
               { img: '/images/ahibahil/mot-president.jpeg', titre: 'Tradition et spiritualité', desc: 'L\'héritage Ahibahil Khadim.' },
             ].map((item, idx) => (
               <Grid item xs={12} sm={6} md={4} key={idx}>
-                <Card sx={{ borderRadius: 2, overflow: 'hidden', borderLeft: `4px solid ${COLORS.vert}`, boxShadow: `0 4px 20px ${COLORS.bleu}15`, minHeight: { xs: 280, sm: 300, md: 320 } }}>
-                  <CardMedia
-                    component="img"
-                    height={{ xs: 200, sm: 220, md: 260 }}
-                    image={item.img}
-                    alt={item.titre}
-                    sx={{ objectFit: 'cover', '&:hover': { transform: 'scale(1.02)' }, transition: 'transform 0.4s ease' }}
-                  />
+                <Card className="img-fade-in" sx={{ borderRadius: 2, overflow: 'hidden', borderLeft: `4px solid ${COLORS.vert}`, boxShadow: `0 4px 20px ${COLORS.bleu}15`, minHeight: { xs: 280, sm: 300, md: 320 } }}>
+                  <Box className="img-zoom-wrap" sx={{ borderRadius: 0 }}>
+                    <CardMedia
+                      className="img-zoom"
+                      component="img"
+                      loading="lazy"
+                      height={{ xs: 200, sm: 220, md: 260 }}
+                      image={item.img}
+                      alt={item.titre}
+                      onClick={() => setPreviewImage(item)}
+                      sx={{ objectFit: 'cover', cursor: 'zoom-in' }}
+                    />
+                  </Box>
                   <CardContent sx={{ p: { xs: 1.5, sm: 2, md: 2 } }}>
                     <Typography 
                       variant="h6" 
@@ -847,6 +856,27 @@ export default function Accueil() {
           </Grid>
         </Box>
 
+        <Dialog open={!!previewImage} onClose={() => setPreviewImage(null)} maxWidth="md">
+          <Box sx={{ position: 'relative', bgcolor: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <IconButton
+              onClick={() => setPreviewImage(null)}
+              size="small"
+              sx={{ position: 'absolute', top: 8, right: 8, bgcolor: 'rgba(255,255,255,0.15)', color: 'white', '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' } }}
+            >
+              <CloseIcon fontSize="small" />
+            </IconButton>
+            {previewImage && (
+              <Box
+                component="img"
+                className="img-fade-in"
+                src={previewImage.img}
+                alt={previewImage.titre}
+                sx={{ maxWidth: '100%', maxHeight: '80vh', display: 'block' }}
+              />
+            )}
+          </Box>
+        </Dialog>
+
         {/* Galerie — encore plus d'images */}
         <Box sx={{ mb: { xs: 6, sm: 8, md: 12 } }} id="galerie">
           <Typography 
@@ -862,21 +892,23 @@ export default function Accueil() {
           <Grid container spacing={{ xs: 1.5, sm: 2, md: 2 }}>
             {['/images/ahibahil/assemblee.jpeg', '/images/ahibahil/sections.jpeg', '/images/ahibahil/mot-president.jpeg', '/images/ahibahil/assemblee.jpeg', '/images/ahibahil/sections.jpeg', '/images/ahibahil/mot-president.jpeg'].map((src, i) => (
               <Grid item xs={6} sm={4} md={2} key={i}>
-                <Box
-                  component="img"
-                  src={src}
-                  alt={`Galerie Ahibahil ${i + 1}`}
-                  sx={{
-                    width: '100%',
-                    height: { xs: 140, sm: 180, md: 220 },
-                    objectFit: 'cover',
-                    borderRadius: 2,
-                    border: `2px solid ${COLORS.vert}`,
-                    boxShadow: `0 4px 12px ${COLORS.bleu}20`,
-                    transition: 'transform 0.3s ease, box-shadow 0.3s ease',
-                    '&:hover': { transform: 'scale(1.03)', boxShadow: `0 8px 24px ${COLORS.bleu}30` },
-                  }}
-                />
+                <Box className="img-zoom-wrap" sx={{ borderRadius: 2, border: `2px solid ${COLORS.vert}`, boxShadow: `0 4px 12px ${COLORS.bleu}20` }}>
+                  <Box
+                    component="img"
+                    className="img-fade-in img-zoom"
+                    loading="lazy"
+                    src={src}
+                    alt={`Galerie Ahibahil ${i + 1}`}
+                    onClick={() => setPreviewImage({ img: src, titre: `Galerie Ahibahil ${i + 1}` })}
+                    sx={{
+                      width: '100%',
+                      height: { xs: 140, sm: 180, md: 220 },
+                      objectFit: 'cover',
+                      display: 'block',
+                      cursor: 'zoom-in',
+                    }}
+                  />
+                </Box>
               </Grid>
             ))}
           </Grid>

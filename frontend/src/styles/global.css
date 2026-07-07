@@ -78,3 +78,52 @@ body {
 .item-hover:hover {
   transform: translateX(4px);
 }
+
+/* Images : jamais de débordement horizontal sur mobile par défaut */
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Apparition en fondu au chargement (photos de galerie, avatars, actualités...) */
+.img-fade-in {
+  animation: fadeIn 0.45s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+/* Zoom doux au survol (desktop) et au tap (mobile), pour les vignettes cliquables */
+.img-zoom-wrap {
+  overflow: hidden;
+  border-radius: 16px;
+}
+
+.img-zoom {
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
+}
+
+.img-zoom-wrap:hover .img-zoom,
+.img-zoom-wrap:active .img-zoom {
+  transform: scale(1.06);
+}
+
+/* Effet "shimmer" pendant le chargement d'une image (placeholder) */
+.img-skeleton {
+  background: linear-gradient(90deg, #eee0c8 25%, #f4ead5 37%, #eee0c8 63%);
+  background-size: 400% 100%;
+  animation: shimmer 1.4s ease infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .img-fade-in,
+  .img-zoom,
+  .img-skeleton,
+  .sidebar-enter {
+    animation: none !important;
+    transition: none !important;
+  }
+}

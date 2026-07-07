@@ -20,6 +20,13 @@ import {
   InputAdornment,
   Pagination,
   Collapse,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
 } from '@mui/material'
 import { Add, Edit, Delete, Visibility, VisibilityOff, Search, FilterList, RestartAlt } from '@mui/icons-material'
 import api from '../../services/api'
@@ -456,59 +463,71 @@ export default function GestionMembres() {
       ) : (
         <>
           <Typography variant="body2" sx={{ mb: 1.5, color: colors.vertFonce }}>
-            {count} résultat{count > 1 ? 's' : ''}
+            {count} résultat{count > 1 ? 's' : ''} — page {page}/{pageCount}
           </Typography>
-          <Grid container spacing={2}>
-            {list.length === 0 ? (
-              <Grid item xs={12}>
-                <Card sx={{ p: 4, textAlign: 'center' }}>
-                  <Typography>Aucun membre ne correspond à ces critères.</Typography>
-                </Card>
-              </Grid>
-            ) : (
-              list.map((u) => (
-                <Grid item xs={12} sm={6} md={4} key={u.id}>
-                  <Card sx={{ height: '100%' }}>
-                    <CardContent>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5 }}>
-                        <Avatar
-                          src={getMediaUrl(u.photo, u.photo_updated_at ? `v=${u.photo_updated_at}` : '')}
-                          sx={{ width: 44, height: 44, bgcolor: colors.or, color: colors.blanc }}
-                        >
-                          {u.first_name?.[0]}{u.last_name?.[0]}
-                        </Avatar>
-                        <Box sx={{ minWidth: 0 }}>
-                          <Typography variant="subtitle1" sx={{ fontWeight: 600, lineHeight: 1.2 }} noWrap>
-                            {`${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username}
-                          </Typography>
-                          <Typography variant="caption" sx={{ color: 'text.secondary' }}>@{u.username}</Typography>
+          <TableContainer component={Paper} sx={{ borderRadius: 2, borderLeft: `4px solid ${colors.vert}` }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow sx={{ bgcolor: `${colors.vert}12` }}>
+                  <TableCell>Membre</TableCell>
+                  <TableCell>Sexe</TableCell>
+                  <TableCell>Rôle</TableCell>
+                  <TableCell>Téléphone</TableCell>
+                  <TableCell>Profession</TableCell>
+                  <TableCell>Section</TableCell>
+                  <TableCell>Dahira</TableCell>
+                  <TableCell>Carte membre</TableCell>
+                  <TableCell>CNI</TableCell>
+                  <TableCell>Cotisation</TableCell>
+                  <TableCell>Statut</TableCell>
+                  <TableCell align="right">Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {list.length === 0 ? (
+                  <TableRow><TableCell colSpan={12} align="center">Aucun membre ne correspond à ces critères.</TableCell></TableRow>
+                ) : (
+                  list.map((u) => (
+                    <TableRow key={u.id} hover>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Avatar
+                            src={getMediaUrl(u.photo, u.photo_updated_at ? `v=${u.photo_updated_at}` : '')}
+                            sx={{ width: 32, height: 32, bgcolor: colors.or, color: colors.blanc }}
+                          >
+                            {u.first_name?.[0]}{u.last_name?.[0]}
+                          </Avatar>
+                          <Box sx={{ minWidth: 0 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.2 }} noWrap>
+                              {`${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username}
+                            </Typography>
+                            <Typography variant="caption" sx={{ color: 'text.secondary' }}>@{u.username}</Typography>
+                          </Box>
                         </Box>
-                      </Box>
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1.5 }}>
-                        <Chip label={u.role_display || u.role} size="small" sx={{ bgcolor: `${colors.or}30` }} />
-                        <Chip label={u.est_actif ? 'Actif' : 'Inactif'} color={u.est_actif ? 'success' : 'default'} size="small" />
-                        {u.sexe && <Chip label={u.sexe === 'M' ? 'Masculin' : 'Féminin'} size="small" variant="outlined" />}
-                      </Box>
-                      <Typography variant="body2">Téléphone : {u.telephone || '—'}</Typography>
-                      <Typography variant="body2">Profession : {u.profession || '—'}</Typography>
-                      <Typography variant="body2">Section : {u.section_nom || '—'}</Typography>
-                      <Typography variant="body2">Dahira : {u.dahira_nom || '—'}</Typography>
-                      <Typography variant="body2">Carte membre : {u.numero_carte || '—'}</Typography>
-                      <Typography variant="body2">CNI : {u.numero_cni || '—'}</Typography>
-                      <Typography variant="body2">Cotisation mensuelle : {u.montant_cotisation ? `${u.montant_cotisation} FCFA` : '—'}</Typography>
-                      <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5, mt: 1 }}>
+                      </TableCell>
+                      <TableCell>{u.sexe === 'M' ? 'Masculin' : u.sexe === 'F' ? 'Féminin' : '—'}</TableCell>
+                      <TableCell><Chip label={u.role_display || u.role} size="small" sx={{ bgcolor: `${colors.or}30` }} /></TableCell>
+                      <TableCell>{u.telephone || '—'}</TableCell>
+                      <TableCell>{u.profession || '—'}</TableCell>
+                      <TableCell>{u.section_nom || '—'}</TableCell>
+                      <TableCell>{u.dahira_nom || '—'}</TableCell>
+                      <TableCell>{u.numero_carte || '—'}</TableCell>
+                      <TableCell>{u.numero_cni || '—'}</TableCell>
+                      <TableCell>{u.montant_cotisation ? `${u.montant_cotisation} FCFA` : '—'}</TableCell>
+                      <TableCell><Chip label={u.est_actif ? 'Actif' : 'Inactif'} color={u.est_actif ? 'success' : 'default'} size="small" /></TableCell>
+                      <TableCell align="right">
                         <IconButton size="small" onClick={() => handleOpenEdit(u)} sx={{ color: colors.vert }}><Edit fontSize="small" /></IconButton>
                         <IconButton size="small" onClick={() => setOpenDelete(u)} sx={{ color: 'error.main' }}><Delete fontSize="small" /></IconButton>
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              ))
-            )}
-          </Grid>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
           {pageCount > 1 && (
             <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
-              <Pagination count={pageCount} page={page} onChange={(_, p) => runSearch(p)} color="primary" />
+              <Pagination count={pageCount} page={page} onChange={(_, p) => runSearch(p)} color="primary" showFirstButton showLastButton />
             </Box>
           )}
         </>

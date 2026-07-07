@@ -103,6 +103,7 @@ export default function Conservatoire() {
   const [openAlbum, setOpenAlbum] = useState(false)
   const [openPhoto, setOpenPhoto] = useState(false)
   const [selectedAlbum, setSelectedAlbum] = useState(null)
+  const [previewPhoto, setPreviewPhoto] = useState(null)
   const [formAlbum, setFormAlbum] = useState({ titre: '', description: '', date_evenement: '', est_public: true })
   const [formPhoto, setFormPhoto] = useState({ album: '', titre: '', description: '', lieu: '' })
   const [albumFile, setAlbumFile] = useState(null)
@@ -1137,9 +1138,16 @@ export default function Conservatoire() {
                 {albums.map((album) => (
                   <Grid item xs={12} sm={6} md={4} key={album.id}>
                     <Card sx={{ borderLeft: `4px solid ${COLORS.or}`, borderRadius: 2, overflow: 'hidden', cursor: 'pointer', '&:hover': { boxShadow: 4 } }} onClick={() => setSelectedAlbum(album)}>
-                      <Box sx={{ height: 160, bgcolor: `${COLORS.vert}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                      <Box className="img-zoom-wrap" sx={{ height: 160, bgcolor: `${COLORS.vert}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                         {getImageUrl(album.couverture) ? (
-                          <Box component="img" src={getImageUrl(album.couverture)} alt={album.titre} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          <Box
+                            component="img"
+                            className="img-fade-in img-zoom"
+                            loading="lazy"
+                            src={getImageUrl(album.couverture)}
+                            alt={album.titre}
+                            sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          />
                         ) : (
                           <PhotoLibrary sx={{ fontSize: 64, color: `${COLORS.or}99` }} />
                         )}
@@ -1172,8 +1180,16 @@ export default function Conservatoire() {
                     <Grid container spacing={1}>
                       {(selectedAlbum.photos || []).map((p) => (
                         <Grid item xs={6} sm={4} md={3} key={p.id}>
-                          <Box sx={{ position: 'relative', borderRadius: 1, overflow: 'hidden', bgcolor: `${COLORS.vert}10` }}>
-                            <Box component="img" src={getImageUrl(p.fichier)} alt={p.titre} sx={{ width: '100%', height: 120, objectFit: 'cover', display: 'block' }} />
+                          <Box className="img-zoom-wrap" sx={{ position: 'relative', borderRadius: 1, overflow: 'hidden', bgcolor: `${COLORS.vert}10` }}>
+                            <Box
+                              component="img"
+                              className="img-fade-in img-zoom"
+                              loading="lazy"
+                              src={getImageUrl(p.fichier)}
+                              alt={p.titre}
+                              onClick={() => setPreviewPhoto(p)}
+                              sx={{ width: '100%', height: 120, objectFit: 'cover', display: 'block', cursor: 'zoom-in' }}
+                            />
                             {isAdmin && (
                               <IconButton size="small" sx={{ position: 'absolute', top: 4, right: 4, bgcolor: 'rgba(0,0,0,0.5)', color: 'white', '&:hover': { bgcolor: 'rgba(0,0,0,0.7)' } }} onClick={() => setDeleteTarget({ id: p.id, type: 'photo' })}><Delete fontSize="small" /></IconButton>
                             )}
@@ -1191,6 +1207,27 @@ export default function Conservatoire() {
                   </Box>
                 )}
               </DialogContent>
+            </Dialog>
+
+            <Dialog open={!!previewPhoto} onClose={() => setPreviewPhoto(null)} maxWidth="md">
+              <Box sx={{ position: 'relative', bgcolor: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <IconButton
+                  onClick={() => setPreviewPhoto(null)}
+                  size="small"
+                  sx={{ position: 'absolute', top: 8, right: 8, bgcolor: 'rgba(255,255,255,0.15)', color: 'white', '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' } }}
+                >
+                  ×
+                </IconButton>
+                {previewPhoto && (
+                  <Box
+                    component="img"
+                    className="img-fade-in"
+                    src={getImageUrl(previewPhoto.fichier)}
+                    alt={previewPhoto.titre}
+                    sx={{ maxWidth: '100%', maxHeight: '80vh', display: 'block' }}
+                  />
+                )}
+              </Box>
             </Dialog>
           </Box>
         )}

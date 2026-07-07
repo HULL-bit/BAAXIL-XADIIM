@@ -164,14 +164,18 @@ export default function News() {
       ) : (
         <Stack spacing={2}>
           {list.map((n) => (
-            <Card key={n.id} sx={{ borderLeft: `4px solid ${COLORS.vert}`, borderRadius: 2, overflow: 'hidden' }}>
+            <Card key={n.id} className="img-fade-in" sx={{ borderLeft: `4px solid ${COLORS.vert}`, borderRadius: 2, overflow: 'hidden' }}>
               {n.image && (
-                <CardMedia
-                  component="img"
-                  image={getMediaUrl(n.image)}
-                  alt={n.titre}
-                  sx={{ maxHeight: 220, objectFit: 'cover' }}
-                />
+                <Box className="img-zoom-wrap">
+                  <CardMedia
+                    className="img-zoom"
+                    component="img"
+                    loading="lazy"
+                    image={getMediaUrl(n.image)}
+                    alt={n.titre}
+                    sx={{ maxHeight: 220, objectFit: 'cover' }}
+                  />
+                </Box>
               )}
               <CardContent>
                 <Typography fontWeight={700} sx={{ mb: 0.5 }}>{n.titre}</Typography>
@@ -251,6 +255,7 @@ export default function News() {
                 <Box sx={{ mb: 2 }}>
                   <Box
                     component="img"
+                    className="img-fade-in"
                     src={getMediaUrl(detailNews.image)}
                     alt={detailNews.titre}
                     sx={{

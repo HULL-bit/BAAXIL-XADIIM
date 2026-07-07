@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Box, Grid, Card, CardContent, Typography, Button, Chip, Badge } from '@mui/material'
-import { People, AccountBalance, Event, MenuBook, Add, AttachMoney, Message, School, TrendingUp, Forum, Payment, Notifications } from '@mui/icons-material'
+import { People, AccountBalance, Event, MenuBook, Add, AttachMoney, Message, School, TrendingUp, Forum, Payment, Notifications, Man, Woman, MenuBook as StudentIcon, Work } from '@mui/icons-material'
 import { useAuth } from '../../context/AuthContext'
 import api from '../../services/api'
 
@@ -175,6 +175,29 @@ export default function DashboardAdmin() {
           />
         </Grid>
       </Grid>
+
+      {/* Répartition des membres */}
+      <Typography variant="h6" sx={{ color: COLORS.vert, fontFamily: '"Cormorant Garamond", serif', fontWeight: 600, mt: 4, mb: 2 }}>
+        Répartition des membres
+      </Typography>
+      <Grid container spacing={3}>
+        <Grid item xs={6} sm={4} md={2.4}>
+          <StatCard title="Hommes" value={stats?.membres_hommes ?? 0} icon={<Man />} color={COLORS.vert} />
+        </Grid>
+        <Grid item xs={6} sm={4} md={2.4}>
+          <StatCard title="Femmes" value={stats?.membres_femmes ?? 0} icon={<Woman />} color={COLORS.or} />
+        </Grid>
+        <Grid item xs={6} sm={4} md={2.4}>
+          <StatCard title="Élèves" value={stats?.membres_eleves ?? 0} icon={<StudentIcon />} color={COLORS.vertClair} />
+        </Grid>
+        <Grid item xs={6} sm={4} md={2.4}>
+          <StatCard title="Étudiants" value={stats?.membres_etudiants ?? 0} icon={<School />} color={COLORS.vert} />
+        </Grid>
+        <Grid item xs={6} sm={4} md={2.4}>
+          <StatCard title="Professionnels" value={stats?.membres_professionnels ?? 0} icon={<Work />} color={COLORS.or} />
+        </Grid>
+      </Grid>
+
       {/* Cartes d'actions rapides */}
       <Grid container spacing={3} sx={{ mt: 1 }}>
         <Grid item xs={12} md={6}>
