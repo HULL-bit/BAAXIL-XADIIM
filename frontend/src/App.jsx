@@ -15,6 +15,7 @@ const News = lazy(() => import('./components/informations/News'))
 const FinanceParDahira = lazy(() => import('./components/finance/FinanceParDahira'))
 const FinanceHierarchie = lazy(() => import('./components/finance/FinanceHierarchie'))
 const LeveesFonds = lazy(() => import('./components/finance/LeveesFonds'))
+const Barkelou = lazy(() => import('./components/finance/Barkelou'))
 const ProgrammeKamil = lazy(() => import('./components/culturelle/ProgrammeKamil'))
 const MesProgressions = lazy(() => import('./components/culturelle/MesProgressions'))
 const ValidationsKamil = lazy(() => import('./components/culturelle/ValidationsKamil'))
@@ -81,6 +82,7 @@ function AppRoutes() {
         <Route path="finance/par-dahira" element={<ProtectedRoute roles={['admin', 'jewrine_finance']}><FinanceParDahira /></ProtectedRoute>} />
         <Route path="finance/hierarchie" element={<ProtectedRoute roles={['admin', 'jewrine_finance']}><FinanceHierarchie /></ProtectedRoute>} />
         <Route path="finance/levees-fonds" element={<LeveesFonds />} />
+        <Route path="finance/barkelou" element={<Barkelou />} />
         <Route path="culturelle/kamil" element={<ProgrammeKamil />} />
         <Route path="culturelle/mes-progressions" element={<MesProgressions />} />
         <Route path="culturelle/validations" element={<ValidationsKamil />} />

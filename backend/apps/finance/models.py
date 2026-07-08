@@ -200,6 +200,7 @@ class ParametresFinanciers(models.Model):
     sms_notification_paiement = models.BooleanField(default=False)
     wave_api_key = models.CharField(max_length=200, blank=True)
     wave_secret_key = models.CharField(max_length=200, blank=True)
+    lien_paiement_wave = models.URLField(blank=True, help_text="Lien Wave utilisé par les membres pour payer leur cotisation (Barkelou)")
 
     class Meta:
         verbose_name = 'Paramètres Financiers'

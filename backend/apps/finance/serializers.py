@@ -61,4 +61,10 @@ class DonSerializer(serializers.ModelSerializer):
 class ParametresFinanciersSerializer(serializers.ModelSerializer):
     class Meta:
         model = ParametresFinanciers
-        fields = '__all__'
+        # wave_api_key/wave_secret_key volontairement exclus : ce endpoint est
+        # maintenant lisible par tout membre authentifié (pour Barkelou).
+        fields = [
+            'id', 'montant_cotisation_defaut', 'jour_echeance_cotisation',
+            'delai_relance_jours', 'email_notification_paiement',
+            'sms_notification_paiement', 'lien_paiement_wave',
+        ]

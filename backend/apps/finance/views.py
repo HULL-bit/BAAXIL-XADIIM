@@ -206,6 +206,22 @@ class CotisationMensuelleViewSet(viewsets.ModelViewSet):
         return Response(CotisationMensuelleSerializer(cotisation).data)
 
     @action(detail=False, methods=['post'], permission_classes=[IsAdminOrJewrinFinance])
+    def valider_paiements(self, request):
+        """
+        Valide en une fois plusieurs cotisations déclarées payées par les membres
+        (coche + bouton côté admin/jewrine finance). Body : {"ids": [1, 2, 3]}
+        """
+        from django.utils import timezone
+
+        ids = request.data.get('ids') or []
+        if not isinstance(ids, list) or not ids:
+            return Response({'detail': 'ids (liste) requis.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        qs = CotisationMensuelle.objects.filter(id__in=ids).exclude(statut='payee')
+        updated = qs.update(statut='payee', date_paiement=timezone.now())
+        return Response({'valides': updated})
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAdminOrJewrinFinance])
     def generer(self, request):
         """
         Génère automatiquement les cotisations mensuelles de tous les membres actifs
@@ -412,6 +428,9 @@ class DonViewSet(viewsets.ModelViewSet):
 
 
 class ParametresFinanciersViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = ParametresFinanciers.objects.all()
+    # Lecture ouverte à tout membre authentifié (nécessaire pour que Barkelou affiche
+    # le lien de paiement Wave) : ReadOnlyModelViewSet n'expose que du GET, données
+    # non sensibles (lien de paiement, montant par défaut).
+    queryset = ParametresFinanciers.objects.all().order_by('id')
     serializer_class = ParametresFinanciersSerializer
-    permission_classes = [IsAdminOrJewrinFinance()]
+    permission_classes = [IsAuthenticated]

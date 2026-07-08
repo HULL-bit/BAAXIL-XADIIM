@@ -71,9 +71,11 @@ const sectionsAdmin = [
   {
     title: 'Projet gestion finance',
     items: [
+      { label: 'Barkelou (cotisations)', path: '/finance/barkelou', icon: <FinanceIcon /> },
       { label: 'Finance par Dahira', path: '/finance/par-dahira', icon: <FinanceIcon /> },
       { label: 'Synthèse hiérarchique', path: '/finance/hierarchie', icon: <FinanceIcon /> },
-      { label: 'Levées de fonds', path: '/finance/levees-fonds', icon: <FinanceIcon /> },
+      // Levées de fonds désactivées pour l'instant
+      // { label: 'Levées de fonds', path: '/finance/levees-fonds', icon: <FinanceIcon /> },
     ],
   },
   // Modules désactivés: culturelle, sociale, conservatoire, scientifique, organisation
@@ -112,7 +114,9 @@ const sectionsMembre = [
   {
     title: 'Projet gestion finance',
     items: [
-      { label: 'Levées de fonds', path: '/finance/levees-fonds', icon: <FinanceIcon /> },
+      { label: 'Barkelou (cotisations)', path: '/finance/barkelou', icon: <FinanceIcon /> },
+      // Levées de fonds désactivées pour l'instant
+      // { label: 'Levées de fonds', path: '/finance/levees-fonds', icon: <FinanceIcon /> },
     ],
   },
   // Modules désactivés: culturelle, sociale, conservatoire, scientifique, organisation
@@ -150,9 +154,11 @@ const sectionsJewrin = [
   {
     title: 'Projet gestion finance',
     items: [
+      { label: 'Barkelou (cotisations)', path: '/finance/barkelou', icon: <FinanceIcon /> },
       { label: 'Finance par Dahira', path: '/finance/par-dahira', icon: <FinanceIcon /> },
       { label: 'Synthèse hiérarchique', path: '/finance/hierarchie', icon: <FinanceIcon /> },
-      { label: 'Levées de fonds', path: '/finance/levees-fonds', icon: <FinanceIcon /> },
+      // Levées de fonds désactivées pour l'instant
+      // { label: 'Levées de fonds', path: '/finance/levees-fonds', icon: <FinanceIcon /> },
     ],
   },
   // Modules désactivés: culturelle, conservatoire

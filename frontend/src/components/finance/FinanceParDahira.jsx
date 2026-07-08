@@ -23,7 +23,7 @@ import {
   Alert,
   CircularProgress,
 } from '@mui/material'
-import { Add, Groups, AccountBalance, MonetizationOn, TrendingUp, HourglassEmpty, Download, PictureAsPdf } from '@mui/icons-material'
+import { Add, Groups, AccountBalance, MonetizationOn, TrendingUp, HourglassEmpty, Download, PictureAsPdf, Check } from '@mui/icons-material'
 import api, { clearCache } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 
@@ -59,8 +59,12 @@ export default function FinanceParDahira() {
   const [selectedRegroupementId, setSelectedRegroupementId] = useState('')
   const [selectedSectionId, setSelectedSectionId] = useState('')
   const [selectedDahiraId, setSelectedDahiraId] = useState('')
+  const [filterMois, setFilterMois] = useState('')
+  const [filterAnnee, setFilterAnnee] = useState('')
   const [membres, setMembres] = useState([])
   const [cotisations, setCotisations] = useState([])
+  const [selectedCotisationIds, setSelectedCotisationIds] = useState({})
+  const [validating, setValidating] = useState(false)
   const [stats, setStats] = useState(null)
   const [globalStats, setGlobalStats] = useState(null)
   const [exportAnnee, setExportAnnee] = useState(new Date().getFullYear())
@@ -143,17 +147,21 @@ export default function FinanceParDahira() {
     if (selectedDahiraId) params.dahira = selectedDahiraId
     else if (selectedSectionId) params.section = selectedSectionId
     else if (selectedRegroupementId) params.regroupement = selectedRegroupementId
+    const cotisationParams = { ...params }
+    if (filterMois) cotisationParams.mois = filterMois
+    if (filterAnnee) cotisationParams.annee = filterAnnee
 
     // Use Promise.allSettled for better error handling and performance
     // membres n'est utilisé ici que pour son .length/.id (cf. handleSelectAll) : minimal=1
     // évite de transférer le profil complet de centaines de membres.
     Promise.allSettled([
       api.get('/auth/users/', { params: { ...params, minimal: 1 } }).then(({ data }) => data.results || data || []),
-      api.get('/finance/cotisations/', { params }).then(({ data }) => data.results || data || []),
+      api.get('/finance/cotisations/', { params: cotisationParams }).then(({ data }) => data.results || data || []),
     ])
       .then(([usersResult, cotsResult]) => {
         setMembres(usersResult.status === 'fulfilled' ? (Array.isArray(usersResult.value) ? usersResult.value : []) : [])
         setCotisations(cotsResult.status === 'fulfilled' ? (Array.isArray(cotsResult.value) ? cotsResult.value : []) : [])
+        setSelectedCotisationIds({})
       })
       .catch(() => {
         setMembres([])
@@ -165,7 +173,7 @@ export default function FinanceParDahira() {
       .get('/finance/cotisations/statistiques/', { params })
       .then(({ data }) => setStats(data))
       .catch(() => setStats(null))
-  }, [selectedRegroupementId, selectedSectionId, selectedDahiraId, isAdmin])
+  }, [selectedRegroupementId, selectedSectionId, selectedDahiraId, filterMois, filterAnnee, isAdmin])
 
   const selectedRegroupement = regroupements.find((r) => r.id === Number(selectedRegroupementId))
   const selectedSection = sections.find((s) => s.id === Number(selectedSectionId))
@@ -179,6 +187,44 @@ export default function FinanceParDahira() {
   const handleSectionChange = (v) => {
     setSelectedSectionId(v)
     setSelectedDahiraId('')
+  }
+
+  const handleToggleCotisation = (id) => {
+    setSelectedCotisationIds((prev) => ({ ...prev, [id]: !prev[id] }))
+  }
+
+  const validatableCotisations = cotisations.filter((c) => c.statut !== 'payee')
+  const selectedCount = Object.values(selectedCotisationIds).filter(Boolean).length
+
+  const handleSelectAllCotisations = (checked) => {
+    const next = {}
+    if (checked) validatableCotisations.forEach((c) => { next[c.id] = true })
+    setSelectedCotisationIds(next)
+  }
+
+  const handleValiderPaiements = async () => {
+    const ids = Object.entries(selectedCotisationIds).filter(([, v]) => v).map(([id]) => Number(id))
+    if (ids.length === 0) return
+    setValidating(true)
+    setMessage({ type: '', text: '' })
+    try {
+      const { data } = await api.post('/finance/cotisations/valider_paiements/', { ids })
+      setMessage({ type: 'success', text: `${data.valides} paiement(s) validé(s).` })
+      setSelectedCotisationIds({})
+      setCotisations((prev) => prev.map((c) => (ids.includes(c.id) ? { ...c, statut: 'payee' } : c)))
+      // Rafraîchit les cartes de statistiques (montant payé, % payé...) pour qu'elles
+      // reflètent immédiatement la validation au lieu de rester sur les anciens chiffres.
+      const statsParams = {}
+      if (selectedDahiraId) statsParams.dahira = selectedDahiraId
+      else if (selectedSectionId) statsParams.section = selectedSectionId
+      else if (selectedRegroupementId) statsParams.regroupement = selectedRegroupementId
+      api.get('/finance/cotisations/statistiques/', { params: statsParams }).then(({ data: s }) => setStats(s)).catch(() => {})
+      api.get('/finance/cotisations/statistiques/').then(({ data: g }) => setGlobalStats(g)).catch(() => {})
+    } catch (err) {
+      setMessage({ type: 'error', text: err.response?.data?.detail || 'Erreur lors de la validation.' })
+    } finally {
+      setValidating(false)
+    }
   }
 
   const handleExportCotisations = async (format) => {
@@ -557,6 +603,30 @@ export default function FinanceParDahira() {
             <MenuItem key={d.id} value={d.id}>{d.nom}</MenuItem>
           ))}
         </TextField>
+        <TextField
+          select
+          label="Mois"
+          value={filterMois}
+          onChange={(e) => setFilterMois(e.target.value)}
+          size="small"
+          sx={{ minWidth: 150 }}
+        >
+          <MenuItem value="">Tous les mois</MenuItem>
+          {MOIS.map((m) => <MenuItem key={m.value} value={m.value}>{m.label}</MenuItem>)}
+        </TextField>
+        <TextField
+          select
+          label="Année"
+          value={filterAnnee}
+          onChange={(e) => setFilterAnnee(e.target.value)}
+          size="small"
+          sx={{ minWidth: 120 }}
+        >
+          <MenuItem value="">Toutes</MenuItem>
+          {[new Date().getFullYear(), new Date().getFullYear() - 1, new Date().getFullYear() - 2].map((y) => (
+            <MenuItem key={y} value={y}>{y}</MenuItem>
+          ))}
+        </TextField>
         <Button
           variant="contained"
           startIcon={<Add />}
@@ -580,30 +650,61 @@ export default function FinanceParDahira() {
           <Typography variant="h6" sx={{ color: COLORS.vertFonce, mb: 1 }}>
             {currentFilterLabel} — {membres.length} membre(s)
           </Typography>
-          <Typography variant="h6" sx={{ color: COLORS.vertFonce, mb: 1 }}>
-            Cotisations {selectedDahiraId ? 'de ce dahira' : selectedSectionId ? 'de cette section' : 'de ce regroupement'}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 1 }}>
+            <Typography variant="h6" sx={{ color: COLORS.vertFonce }}>
+              Cotisations {selectedDahiraId ? 'de ce dahira' : selectedSectionId ? 'de cette section' : 'de ce regroupement'}
+            </Typography>
+            <Button
+              variant="contained"
+              color="success"
+              size="small"
+              startIcon={validating ? <CircularProgress size={16} color="inherit" /> : <Check />}
+              disabled={selectedCount === 0 || validating}
+              onClick={handleValiderPaiements}
+            >
+              Valider {selectedCount > 0 ? `${selectedCount} paiement(s)` : 'les paiements sélectionnés'}
+            </Button>
+          </Box>
           <TableContainer component={Paper} sx={{ borderLeft: `4px solid ${COLORS.vert}`, borderRadius: 2 }}>
             <Table size="small">
               <TableHead>
                 <TableRow sx={{ bgcolor: `${COLORS.vert}15` }}>
+                  <TableCell padding="checkbox">
+                    <Checkbox
+                      size="small"
+                      checked={validatableCotisations.length > 0 && selectedCount === validatableCotisations.length}
+                      indeterminate={selectedCount > 0 && selectedCount < validatableCotisations.length}
+                      onChange={(e) => handleSelectAllCotisations(e.target.checked)}
+                      disabled={validatableCotisations.length === 0}
+                    />
+                  </TableCell>
                   <TableCell>Membre</TableCell>
                   <TableCell>Mois / Année</TableCell>
                   <TableCell>Type</TableCell>
                   <TableCell>Montant</TableCell>
+                  <TableCell>Référence Wave</TableCell>
                   <TableCell>Statut</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {cotisations.length === 0 ? (
-                  <TableRow><TableCell colSpan={5} align="center">Aucune cotisation</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} align="center">Aucune cotisation</TableCell></TableRow>
                 ) : (
                   cotisations.map((c) => (
-                    <TableRow key={c.id}>
+                    <TableRow key={c.id} hover selected={!!selectedCotisationIds[c.id]}>
+                      <TableCell padding="checkbox">
+                        <Checkbox
+                          size="small"
+                          checked={!!selectedCotisationIds[c.id]}
+                          onChange={() => handleToggleCotisation(c.id)}
+                          disabled={c.statut === 'payee'}
+                        />
+                      </TableCell>
                       <TableCell>{c.membre_nom || `Membre #${c.membre}`}</TableCell>
                       <TableCell>{c.mois}/{c.annee}</TableCell>
                       <TableCell>{c.type_cotisation === 'assignation' ? 'Assignation' : 'Mensualité'}</TableCell>
                       <TableCell>{Number(c.montant).toLocaleString('fr-FR')} FCFA</TableCell>
+                      <TableCell>{c.reference_wave || '—'}</TableCell>
                       <TableCell>{c.statut === 'payee' ? 'Payée' : c.statut === 'en_attente' ? 'En attente' : c.statut}</TableCell>
                     </TableRow>
                   ))
