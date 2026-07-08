@@ -55,6 +55,11 @@ class CotisationMensuelleViewSet(viewsets.ModelViewSet):
             from django.utils import timezone
             instance.date_paiement = timezone.now()
             instance.save(update_fields=['date_paiement'])
+        elif instance.statut != 'payee' and instance.date_paiement:
+            # Ex : correction d'une validation faite par erreur (repassée en attente) —
+            # on efface la date de paiement pour ne pas laisser une donnée incohérente.
+            instance.date_paiement = None
+            instance.save(update_fields=['date_paiement'])
 
     @action(detail=False, methods=['get'])
     def statistiques(self, request):

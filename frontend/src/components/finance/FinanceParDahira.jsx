@@ -22,10 +22,12 @@ import {
   Checkbox,
   Alert,
   CircularProgress,
+  IconButton,
 } from '@mui/material'
-import { Add, Groups, AccountBalance, MonetizationOn, TrendingUp, HourglassEmpty, Download, PictureAsPdf, Check } from '@mui/icons-material'
+import { Add, Groups, AccountBalance, MonetizationOn, TrendingUp, HourglassEmpty, Download, PictureAsPdf, Check, Edit } from '@mui/icons-material'
 import api, { clearCache } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
+import StatutCotisationChip from './StatutCotisationChip'
 
 const COLORS = { vert: '#2DA9E1', vertFonce: '#0F4D71' }
 
@@ -65,6 +67,9 @@ export default function FinanceParDahira() {
   const [cotisations, setCotisations] = useState([])
   const [selectedCotisationIds, setSelectedCotisationIds] = useState({})
   const [validating, setValidating] = useState(false)
+  const [editingCotisation, setEditingCotisation] = useState(null)
+  const [editForm, setEditForm] = useState({ statut: '', montant: '', reference_wave: '' })
+  const [savingEdit, setSavingEdit] = useState(false)
   const [stats, setStats] = useState(null)
   const [globalStats, setGlobalStats] = useState(null)
   const [exportAnnee, setExportAnnee] = useState(new Date().getFullYear())
@@ -202,6 +207,17 @@ export default function FinanceParDahira() {
     setSelectedCotisationIds(next)
   }
 
+  // Rafraîchit les cartes de statistiques (montant payé, % payé...) pour qu'elles
+  // reflètent immédiatement une validation/correction au lieu de rester sur les anciens chiffres.
+  const refreshStats = () => {
+    const statsParams = {}
+    if (selectedDahiraId) statsParams.dahira = selectedDahiraId
+    else if (selectedSectionId) statsParams.section = selectedSectionId
+    else if (selectedRegroupementId) statsParams.regroupement = selectedRegroupementId
+    api.get('/finance/cotisations/statistiques/', { params: statsParams }).then(({ data: s }) => setStats(s)).catch(() => {})
+    api.get('/finance/cotisations/statistiques/').then(({ data: g }) => setGlobalStats(g)).catch(() => {})
+  }
+
   const handleValiderPaiements = async () => {
     const ids = Object.entries(selectedCotisationIds).filter(([, v]) => v).map(([id]) => Number(id))
     if (ids.length === 0) return
@@ -212,18 +228,41 @@ export default function FinanceParDahira() {
       setMessage({ type: 'success', text: `${data.valides} paiement(s) validé(s).` })
       setSelectedCotisationIds({})
       setCotisations((prev) => prev.map((c) => (ids.includes(c.id) ? { ...c, statut: 'payee' } : c)))
-      // Rafraîchit les cartes de statistiques (montant payé, % payé...) pour qu'elles
-      // reflètent immédiatement la validation au lieu de rester sur les anciens chiffres.
-      const statsParams = {}
-      if (selectedDahiraId) statsParams.dahira = selectedDahiraId
-      else if (selectedSectionId) statsParams.section = selectedSectionId
-      else if (selectedRegroupementId) statsParams.regroupement = selectedRegroupementId
-      api.get('/finance/cotisations/statistiques/', { params: statsParams }).then(({ data: s }) => setStats(s)).catch(() => {})
-      api.get('/finance/cotisations/statistiques/').then(({ data: g }) => setGlobalStats(g)).catch(() => {})
+      refreshStats()
     } catch (err) {
       setMessage({ type: 'error', text: err.response?.data?.detail || 'Erreur lors de la validation.' })
     } finally {
       setValidating(false)
+    }
+  }
+
+  const handleOpenEditCotisation = (cotisation) => {
+    setEditingCotisation(cotisation)
+    setEditForm({
+      statut: cotisation.statut,
+      montant: cotisation.montant,
+      reference_wave: cotisation.reference_wave || '',
+    })
+  }
+
+  const handleSaveEditCotisation = async () => {
+    if (!editingCotisation) return
+    setSavingEdit(true)
+    setMessage({ type: '', text: '' })
+    try {
+      const { data } = await api.patch(`/finance/cotisations/${editingCotisation.id}/`, {
+        statut: editForm.statut,
+        montant: editForm.montant,
+        reference_wave: editForm.reference_wave,
+      })
+      setCotisations((prev) => prev.map((c) => (c.id === editingCotisation.id ? { ...c, ...data } : c)))
+      setMessage({ type: 'success', text: 'Cotisation modifiée.' })
+      setEditingCotisation(null)
+      refreshStats()
+    } catch (err) {
+      setMessage({ type: 'error', text: err.response?.data?.detail || 'Erreur lors de la modification.' })
+    } finally {
+      setSavingEdit(false)
     }
   }
 
@@ -684,11 +723,12 @@ export default function FinanceParDahira() {
                   <TableCell>Montant</TableCell>
                   <TableCell>Référence Wave</TableCell>
                   <TableCell>Statut</TableCell>
+                  <TableCell align="right">Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {cotisations.length === 0 ? (
-                  <TableRow><TableCell colSpan={7} align="center">Aucune cotisation</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} align="center">Aucune cotisation</TableCell></TableRow>
                 ) : (
                   cotisations.map((c) => (
                     <TableRow key={c.id} hover selected={!!selectedCotisationIds[c.id]}>
@@ -705,7 +745,12 @@ export default function FinanceParDahira() {
                       <TableCell>{c.type_cotisation === 'assignation' ? 'Assignation' : 'Mensualité'}</TableCell>
                       <TableCell>{Number(c.montant).toLocaleString('fr-FR')} FCFA</TableCell>
                       <TableCell>{c.reference_wave || '—'}</TableCell>
-                      <TableCell>{c.statut === 'payee' ? 'Payée' : c.statut === 'en_attente' ? 'En attente' : c.statut}</TableCell>
+                      <TableCell><StatutCotisationChip statut={c.statut} /></TableCell>
+                      <TableCell align="right">
+                        <IconButton size="small" onClick={() => handleOpenEditCotisation(c)} sx={{ color: COLORS.vert }} title="Modifier">
+                          <Edit fontSize="small" />
+                        </IconButton>
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -875,6 +920,56 @@ export default function FinanceParDahira() {
           <Button onClick={() => setOpenAssign(false)} disabled={saving}>Annuler</Button>
           <Button variant="contained" onClick={handleCreateCotisations} disabled={saving} sx={{ bgcolor: COLORS.vert, '&:hover': { bgcolor: COLORS.vertFonce } }}>
             {saving ? <CircularProgress size={24} /> : 'Créer les cotisations'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={!!editingCotisation} onClose={() => !savingEdit && setEditingCotisation(null)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ bgcolor: COLORS.vert, color: '#fff' }}>Modifier la cotisation</DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          {editingCotisation && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+              <Typography variant="body2" color="text.secondary">
+                {editingCotisation.membre_nom} — {editingCotisation.mois}/{editingCotisation.annee}
+              </Typography>
+              <TextField
+                select
+                label="Statut"
+                value={editForm.statut}
+                onChange={(e) => setEditForm((f) => ({ ...f, statut: e.target.value }))}
+                fullWidth
+                helperText="Utile pour annuler une validation faite par erreur (repasser en attente)."
+              >
+                <MenuItem value="en_attente">En attente</MenuItem>
+                <MenuItem value="payee">Payée</MenuItem>
+                <MenuItem value="retard">En retard</MenuItem>
+                <MenuItem value="annulee">Annulée</MenuItem>
+              </TextField>
+              <TextField
+                label="Montant (FCFA)"
+                type="number"
+                value={editForm.montant}
+                onChange={(e) => setEditForm((f) => ({ ...f, montant: e.target.value }))}
+                fullWidth
+              />
+              <TextField
+                label="Référence Wave"
+                value={editForm.reference_wave}
+                onChange={(e) => setEditForm((f) => ({ ...f, reference_wave: e.target.value }))}
+                fullWidth
+              />
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditingCotisation(null)} disabled={savingEdit}>Annuler</Button>
+          <Button
+            variant="contained"
+            onClick={handleSaveEditCotisation}
+            disabled={savingEdit}
+            sx={{ bgcolor: COLORS.vert, '&:hover': { bgcolor: COLORS.vertFonce } }}
+          >
+            {savingEdit ? <CircularProgress size={24} /> : 'Enregistrer'}
           </Button>
         </DialogActions>
       </Dialog>

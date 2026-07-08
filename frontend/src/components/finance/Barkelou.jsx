@@ -5,7 +5,6 @@ import {
   Card,
   CardContent,
   Button,
-  Chip,
   TextField,
   MenuItem,
   Alert,
@@ -19,9 +18,10 @@ import {
   Paper,
   Grid,
 } from '@mui/material'
-import { AccountBalance, Payment, CheckCircle, HourglassEmpty, Warning } from '@mui/icons-material'
+import { AccountBalance, Payment } from '@mui/icons-material'
 import api from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
+import StatutCotisationChip from './StatutCotisationChip'
 
 const COLORS = { vert: '#2DA9E1', vertFonce: '#0F4D71' }
 const MOIS = [
@@ -30,13 +30,6 @@ const MOIS = [
   { value: 7, label: 'Juillet' }, { value: 8, label: 'Août' }, { value: 9, label: 'Septembre' },
   { value: 10, label: 'Octobre' }, { value: 11, label: 'Novembre' }, { value: 12, label: 'Décembre' },
 ]
-
-const STATUT_CHIP = {
-  payee: { label: 'Payée', color: 'success', icon: <CheckCircle fontSize="small" /> },
-  en_attente: { label: 'En attente', color: 'warning', icon: <HourglassEmpty fontSize="small" /> },
-  retard: { label: 'En retard', color: 'error', icon: <Warning fontSize="small" /> },
-  annulee: { label: 'Annulée', color: 'default', icon: null },
-}
 
 export default function Barkelou() {
   const { user } = useAuth()
@@ -90,11 +83,6 @@ export default function Barkelou() {
     }
   }
 
-  const renderStatutChip = (statut) => {
-    const s = STATUT_CHIP[statut] || { label: statut, color: 'default', icon: null }
-    return <Chip label={s.label} color={s.color} size="small" icon={s.icon || undefined} />
-  }
-
   return (
     <Box>
       <Typography variant="h4" sx={{ color: COLORS.vert, fontWeight: 600, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -130,7 +118,7 @@ export default function Barkelou() {
               </Grid>
               <Grid item xs={12} sm={3}>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>Statut</Typography>
-                {renderStatutChip(cotisationCourante.statut)}
+                <StatutCotisationChip statut={cotisationCourante.statut} />
               </Grid>
               {cotisationCourante.statut !== 'payee' && (
                 <Grid item xs={12} sm={5}>
@@ -222,7 +210,7 @@ export default function Barkelou() {
                   <TableRow key={c.id}>
                     <TableCell>{MOIS.find((m) => m.value === c.mois)?.label || c.mois}</TableCell>
                     <TableCell>{Number(c.montant).toLocaleString('fr-FR')} FCFA</TableCell>
-                    <TableCell>{renderStatutChip(c.statut)}</TableCell>
+                    <TableCell><StatutCotisationChip statut={c.statut} /></TableCell>
                     <TableCell>{c.date_paiement ? new Date(c.date_paiement).toLocaleDateString('fr-FR') : '—'}</TableCell>
                   </TableRow>
                 ))
