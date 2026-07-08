@@ -14,7 +14,9 @@ router.register(r'parametres-financiers', views.ParametresFinanciersViewSet)
 
 
 def _rapport_cotisations_wrapper(req):
-    """Export PDF/Excel des cotisations. GET ?format=pdf|excel&annee=&mois=&date_debut=&date_fin="""
+    """Export PDF/Excel des cotisations.
+    GET ?format=pdf|excel&annee=&mois=&date_debut=&date_fin=&regroupement=&section=&dahira=
+    """
     user = getattr(req, 'user', None)
     if not user or not user.is_authenticated:
         try:
@@ -53,6 +55,10 @@ def _rapport_cotisations_wrapper(req):
     except (ValueError, TypeError):
         pass
 
+    regroupement = req.GET.get('regroupement') or None
+    section = req.GET.get('section') or None
+    dahira = req.GET.get('dahira') or None
+
     buf = None
     content_type = 'application/octet-stream'
     filename = 'rapport_cotisations'
@@ -62,11 +68,11 @@ def _rapport_cotisations_wrapper(req):
             filename += f'_m{mois}'
     filename += '_toutes' if not (annee or date_debut) else ''
     if fmt in ('excel', 'xlsx'):
-        buf = export_rapport_excel(date_debut, date_fin, annee, mois)
+        buf = export_rapport_excel(date_debut, date_fin, annee, mois, regroupement, section, dahira)
         content_type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         filename += '.xlsx'
     elif fmt == 'pdf':
-        buf = export_rapport_pdf(date_debut, date_fin, annee, mois)
+        buf = export_rapport_pdf(date_debut, date_fin, annee, mois, regroupement, section, dahira)
         content_type = 'application/pdf'
         filename += '.pdf'
 

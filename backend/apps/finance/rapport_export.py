@@ -127,8 +127,10 @@ def build_hierarchie_data(annee=None, mois=None):
     ]
 
 
-def _get_queryset(date_debut=None, date_fin=None, annee=None, mois=None):
-    """Queryset des cotisations. Filtres optionnels par période."""
+def _get_queryset(date_debut=None, date_fin=None, annee=None, mois=None, regroupement=None, section=None, dahira=None):
+    """Queryset des cotisations. Filtres optionnels par période et par rattachement
+    organisationnel (pour exporter uniquement ce qui est affiché à l'écran sur
+    Finance par Dahira, par ex. un seul regroupement/section/dahira)."""
     qs = CotisationMensuelle.objects.exclude(statut='annulee').select_related('membre').order_by('annee', 'mois')
     if annee:
         qs = qs.filter(annee=annee)
@@ -145,7 +147,29 @@ def _get_queryset(date_debut=None, date_fin=None, annee=None, mois=None):
         qs = qs.filter(annee__lte=date_fin.year).exclude(
             annee=date_fin.year, mois__gt=date_fin.month
         )
+    if dahira:
+        qs = qs.filter(membre__dahira_id=dahira)
+    elif section:
+        qs = qs.filter(membre__section_id=section)
+    elif regroupement:
+        qs = qs.filter(membre__regroupement_id=regroupement)
     return qs
+
+
+def _scope_label(regroupement=None, section=None, dahira=None):
+    """Libellé du périmètre filtré (affiché dans le rapport), pour que l'export
+    corresponde clairement à ce qui était sélectionné à l'écran."""
+    from apps.organisation.models import Regroupement, Section, Dahira
+    if dahira:
+        obj = Dahira.objects.filter(id=dahira).first()
+        return f" — Dahira : {obj.nom}" if obj else ""
+    if section:
+        obj = Section.objects.filter(id=section).first()
+        return f" — Section : {obj.nom}" if obj else ""
+    if regroupement:
+        obj = Regroupement.objects.filter(id=regroupement).first()
+        return f" — Regroupement : {obj.nom}" if obj else ""
+    return ""
 
 
 def _get_stats_par_membre(qs):
@@ -187,7 +211,7 @@ def _get_stats_par_membre(qs):
     return sorted(result, key=lambda x: (-x['montant_paye'], x['nom']))
 
 
-def export_rapport_excel(date_debut=None, date_fin=None, annee=None, mois=None):
+def export_rapport_excel(date_debut=None, date_fin=None, annee=None, mois=None, regroupement=None, section=None, dahira=None):
     """Export Excel des cotisations + feuille statistiques + feuille par membre."""
     try:
         import openpyxl
@@ -196,7 +220,7 @@ def export_rapport_excel(date_debut=None, date_fin=None, annee=None, mois=None):
     except ImportError:
         return None
 
-    qs = _get_queryset(date_debut, date_fin, annee, mois)
+    qs = _get_queryset(date_debut, date_fin, annee, mois, regroupement, section, dahira)
     stats_membres = _get_stats_par_membre(qs)
 
     from django.db.models import Sum, Q
@@ -225,6 +249,7 @@ def export_rapport_excel(date_debut=None, date_fin=None, annee=None, mois=None):
         periode_str = f"Année {annee}" + (f" - Mois {mois}" if mois else "")
     elif date_debut and date_fin:
         periode_str = f"{date_debut.strftime('%d/%m/%Y')} — {date_fin.strftime('%d/%m/%Y')}"
+    periode_str += _scope_label(regroupement, section, dahira)
 
     ws_stats.cell(row=1, column=1, value="Rapport des cotisations").font = Font(bold=True, size=14)
     ws_stats.cell(row=2, column=1, value=f"Période : {periode_str}")
@@ -295,7 +320,7 @@ def export_rapport_excel(date_debut=None, date_fin=None, annee=None, mois=None):
     return buf
 
 
-def export_rapport_pdf(date_debut=None, date_fin=None, annee=None, mois=None):
+def export_rapport_pdf(date_debut=None, date_fin=None, annee=None, mois=None, regroupement=None, section=None, dahira=None):
     """Export PDF des cotisations."""
     try:
         from reportlab.lib import colors
@@ -306,7 +331,7 @@ def export_rapport_pdf(date_debut=None, date_fin=None, annee=None, mois=None):
     except ImportError:
         return None
 
-    qs = _get_queryset(date_debut, date_fin, annee, mois)
+    qs = _get_queryset(date_debut, date_fin, annee, mois, regroupement, section, dahira)
     stats_membres = _get_stats_par_membre(qs)
 
     from django.db.models import Sum, Q
@@ -333,6 +358,7 @@ def export_rapport_pdf(date_debut=None, date_fin=None, annee=None, mois=None):
         periode_str = f"Année {annee}" + (f" - Mois {mois}" if mois else "")
     elif date_debut and date_fin:
         periode_str = f"{date_debut.strftime('%d/%m/%Y')} — {date_fin.strftime('%d/%m/%Y')}"
+    periode_str += _scope_label(regroupement, section, dahira)
 
     from utils.pdf_header import build_pdf_header
     elements.extend(build_pdf_header("Rapport des cotisations", periode_str))

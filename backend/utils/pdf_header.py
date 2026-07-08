@@ -10,16 +10,20 @@ DAARA_SOUS_TITRE = "Wakeur Serigne Mnacke Madina"
 
 
 def get_logo_path():
-    """Retourne le chemin du logo s'il existe."""
+    """Retourne le chemin du logo Ahibahil Khadim s'il existe.
+
+    logo.png (frontend/public et backend/static) est un fichier resté d'un
+    autre daara (Daara Barakatoul Mahahidi) — le vrai logo Ahibahil Khadim
+    utilisé partout ailleurs dans l'app est logo.jpeg.
+    """
     base = Path(settings.BASE_DIR)
-    # Essayer frontend/public/logo.png (projet monorepo)
-    p = base.parent / 'frontend' / 'public' / 'logo.png'
-    if p.exists():
-        return str(p)
-    # Essayer backend/static/logo.png
-    p = base / 'static' / 'logo.png'
-    if p.exists():
-        return str(p)
+    candidates = [
+        base.parent / 'frontend' / 'public' / 'logo.jpeg',
+        base / 'static' / 'logo.jpeg',
+    ]
+    for p in candidates:
+        if p.exists():
+            return str(p)
     return None
 
 

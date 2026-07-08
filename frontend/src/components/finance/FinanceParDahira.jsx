@@ -187,6 +187,11 @@ export default function FinanceParDahira() {
     try {
       const params = { format, annee: exportAnnee }
       if (exportMois) params.mois = exportMois
+      // Exporte le même périmètre que celui actuellement affiché à l'écran
+      // (regroupement/section/dahira sélectionné), pas toujours toutes les cotisations.
+      if (selectedDahiraId) params.dahira = selectedDahiraId
+      else if (selectedSectionId) params.section = selectedSectionId
+      else if (selectedRegroupementId) params.regroupement = selectedRegroupementId
       const { data } = await api.get('/finance/export-rapport-cotisations/', { params, responseType: 'blob' })
       const ext = format === 'pdf' ? 'pdf' : 'xlsx'
       const url = window.URL.createObjectURL(new Blob([data]))
@@ -443,7 +448,9 @@ export default function FinanceParDahira() {
       )}
 
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3, flexWrap: 'wrap' }}>
-        <Typography variant="body2" sx={{ color: COLORS.vertFonce, fontWeight: 600 }}>Export du rapport des cotisations :</Typography>
+        <Typography variant="body2" sx={{ color: COLORS.vertFonce, fontWeight: 600 }}>
+          Export du rapport des cotisations{currentFilterLabel ? ` (${currentFilterLabel})` : ' (toutes sections)'} :
+        </Typography>
         <TextField
           select
           size="small"
