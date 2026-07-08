@@ -23,8 +23,10 @@ import {
   Alert,
   CircularProgress,
   IconButton,
+  Autocomplete,
+  Avatar,
 } from '@mui/material'
-import { Add, Groups, AccountBalance, MonetizationOn, TrendingUp, HourglassEmpty, Download, PictureAsPdf, Check, Edit } from '@mui/icons-material'
+import { Add, Groups, AccountBalance, MonetizationOn, TrendingUp, HourglassEmpty, Download, PictureAsPdf, Check, Edit, Search, Close } from '@mui/icons-material'
 import api, { clearCache } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import StatutCotisationChip from './StatutCotisationChip'
@@ -63,6 +65,7 @@ export default function FinanceParDahira() {
   const [selectedDahiraId, setSelectedDahiraId] = useState('')
   const [filterMois, setFilterMois] = useState('')
   const [filterAnnee, setFilterAnnee] = useState('')
+  const [filterStatut, setFilterStatut] = useState('')
   const [membres, setMembres] = useState([])
   const [cotisations, setCotisations] = useState([])
   const [selectedCotisationIds, setSelectedCotisationIds] = useState({})
@@ -72,6 +75,12 @@ export default function FinanceParDahira() {
   const [savingEdit, setSavingEdit] = useState(false)
   const [stats, setStats] = useState(null)
   const [globalStats, setGlobalStats] = useState(null)
+  const [memberSearchQuery, setMemberSearchQuery] = useState('')
+  const [memberSearchOptions, setMemberSearchOptions] = useState([])
+  const [memberSearchLoading, setMemberSearchLoading] = useState(false)
+  const [lookupMember, setLookupMember] = useState(null)
+  const [lookupCotisations, setLookupCotisations] = useState([])
+  const [lookupLoading, setLookupLoading] = useState(false)
   const [exportAnnee, setExportAnnee] = useState(new Date().getFullYear())
   const [exportMois, setExportMois] = useState('')
   const [exportingFormat, setExportingFormat] = useState('')
@@ -120,6 +129,38 @@ export default function FinanceParDahira() {
       .catch(() => setGlobalStats(null))
   }, [isAdmin])
 
+  // Recherche d'un membre par nom/téléphone (indépendante du regroupement/section/dahira
+  // sélectionné) pour consulter directement son état de paiement.
+  useEffect(() => {
+    if (!memberSearchQuery || memberSearchQuery.trim().length < 2) {
+      setMemberSearchOptions([])
+      return
+    }
+    let cancelled = false
+    setMemberSearchLoading(true)
+    const timer = setTimeout(() => {
+      api.get('/auth/users/', { params: { search: memberSearchQuery.trim(), minimal: 1, page_size: 10 } })
+        .then(({ data }) => { if (!cancelled) setMemberSearchOptions(data.results || data || []) })
+        .catch(() => { if (!cancelled) setMemberSearchOptions([]) })
+        .finally(() => { if (!cancelled) setMemberSearchLoading(false) })
+    }, 300)
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [memberSearchQuery])
+
+  const handleSelectLookupMember = (member) => {
+    setLookupMember(member)
+    setMemberSearchOptions([])
+    if (!member) {
+      setLookupCotisations([])
+      return
+    }
+    setLookupLoading(true)
+    api.get('/finance/cotisations/', { params: { membre: member.id, page_size: 100 } })
+      .then(({ data }) => setLookupCotisations(data.results || data || []))
+      .catch(() => setLookupCotisations([]))
+      .finally(() => setLookupLoading(false))
+  }
+
   const sectionsFiltered = selectedRegroupementId
     ? sections.filter((s) => Number(s.regroupement) === Number(selectedRegroupementId))
     : sections
@@ -155,6 +196,7 @@ export default function FinanceParDahira() {
     const cotisationParams = { ...params }
     if (filterMois) cotisationParams.mois = filterMois
     if (filterAnnee) cotisationParams.annee = filterAnnee
+    if (filterStatut) cotisationParams.statut = filterStatut
 
     // Use Promise.allSettled for better error handling and performance
     // membres n'est utilisé ici que pour son .length/.id (cf. handleSelectAll) : minimal=1
@@ -178,7 +220,7 @@ export default function FinanceParDahira() {
       .get('/finance/cotisations/statistiques/', { params })
       .then(({ data }) => setStats(data))
       .catch(() => setStats(null))
-  }, [selectedRegroupementId, selectedSectionId, selectedDahiraId, filterMois, filterAnnee, isAdmin])
+  }, [selectedRegroupementId, selectedSectionId, selectedDahiraId, filterMois, filterAnnee, filterStatut, isAdmin])
 
   const selectedRegroupement = regroupements.find((r) => r.id === Number(selectedRegroupementId))
   const selectedSection = sections.find((s) => s.id === Number(selectedSectionId))
@@ -495,6 +537,91 @@ export default function FinanceParDahira() {
         Sélectionnez un regroupement, une section ou un dahira pour voir les membres et les cotisations. Pour ajouter des cotisations, cliquez sur le bouton puis choisissez un regroupement, une section ou un dahira et sélectionnez un ou plusieurs membres.
       </Typography>
 
+      <Card sx={{ mb: 3, borderLeft: `4px solid ${COLORS.vert}`, borderRadius: 2 }}>
+        <CardContent>
+          <Typography variant="subtitle1" sx={{ color: COLORS.vertFonce, fontWeight: 600, mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Search fontSize="small" /> Rechercher un membre pour voir son état de paiement
+          </Typography>
+          <Autocomplete
+            options={memberSearchOptions}
+            loading={memberSearchLoading}
+            value={lookupMember}
+            filterOptions={(x) => x}
+            getOptionLabel={(m) => (m ? `${m.first_name || ''} ${m.last_name || ''}`.trim() || m.username : '')}
+            isOptionEqualToValue={(a, b) => a.id === b.id}
+            onInputChange={(_, value) => setMemberSearchQuery(value)}
+            onChange={(_, value) => handleSelectLookupMember(value)}
+            noOptionsText={memberSearchQuery.trim().length < 2 ? 'Tapez au moins 2 caractères…' : 'Aucun membre trouvé'}
+            renderOption={(props, m) => (
+              <Box component="li" {...props} key={m.id} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <Avatar sx={{ width: 28, height: 28, bgcolor: COLORS.vert, fontSize: 13 }}>
+                  {m.first_name?.[0]}{m.last_name?.[0]}
+                </Avatar>
+                <Box>
+                  <Typography variant="body2">{`${m.first_name || ''} ${m.last_name || ''}`.trim() || m.username}</Typography>
+                  <Typography variant="caption" color="text.secondary">@{m.username}</Typography>
+                </Box>
+              </Box>
+            )}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                placeholder="Nom, prénom, téléphone…"
+                size="small"
+                InputProps={{
+                  ...params.InputProps,
+                  endAdornment: (
+                    <>
+                      {memberSearchLoading ? <CircularProgress size={16} /> : null}
+                      {params.InputProps.endAdornment}
+                    </>
+                  ),
+                }}
+              />
+            )}
+          />
+
+          {lookupMember && (
+            <Box sx={{ mt: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  Historique de {`${lookupMember.first_name || ''} ${lookupMember.last_name || ''}`.trim() || lookupMember.username}
+                </Typography>
+                <IconButton size="small" onClick={() => handleSelectLookupMember(null)}><Close fontSize="small" /></IconButton>
+              </Box>
+              {lookupLoading ? (
+                <Box display="flex" justifyContent="center" py={2}><CircularProgress size={24} /></Box>
+              ) : lookupCotisations.length === 0 ? (
+                <Typography color="text.secondary" variant="body2">Aucune cotisation trouvée pour ce membre.</Typography>
+              ) : (
+                <TableContainer component={Paper} variant="outlined">
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow sx={{ bgcolor: `${COLORS.vert}10` }}>
+                        <TableCell>Mois / Année</TableCell>
+                        <TableCell>Montant</TableCell>
+                        <TableCell>Référence Wave</TableCell>
+                        <TableCell>Statut</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {[...lookupCotisations].sort((a, b) => (b.annee - a.annee) || (b.mois - a.mois)).map((c) => (
+                        <TableRow key={c.id}>
+                          <TableCell>{c.mois}/{c.annee}</TableCell>
+                          <TableCell>{Number(c.montant).toLocaleString('fr-FR')} FCFA</TableCell>
+                          <TableCell>{c.reference_wave || '—'}</TableCell>
+                          <TableCell><StatutCotisationChip statut={c.statut} /></TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </Box>
+          )}
+        </CardContent>
+      </Card>
+
       {globalStats && (
         <Grid container spacing={2} sx={{ mb: 3 }}>
           <Grid item xs={6} sm={3}>
@@ -665,6 +792,20 @@ export default function FinanceParDahira() {
           {[new Date().getFullYear(), new Date().getFullYear() - 1, new Date().getFullYear() - 2].map((y) => (
             <MenuItem key={y} value={y}>{y}</MenuItem>
           ))}
+        </TextField>
+        <TextField
+          select
+          label="Statut de paiement"
+          value={filterStatut}
+          onChange={(e) => setFilterStatut(e.target.value)}
+          size="small"
+          sx={{ minWidth: 170 }}
+        >
+          <MenuItem value="">Tous les statuts</MenuItem>
+          <MenuItem value="en_attente">En attente</MenuItem>
+          <MenuItem value="payee">Payée</MenuItem>
+          <MenuItem value="retard">En retard</MenuItem>
+          <MenuItem value="annulee">Annulée</MenuItem>
         </TextField>
         <Button
           variant="contained"
