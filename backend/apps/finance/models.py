@@ -102,6 +102,7 @@ class Transaction(models.Model):
         ('levee_fonds', 'Levée de Fonds'),
         ('don', 'Don'),
         ('depense', 'Dépense'),
+        ('hadiya', 'Hadiya'),
         ('autre', 'Autre'),
     ]
 

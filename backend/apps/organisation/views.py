@@ -4,7 +4,7 @@ from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from apps.accounts.permissions import IsAdminOrJewrinOrganisation
+from apps.accounts.permissions import IsSuperAdminOrganisation
 
 from .models import (
     TypeReunion,
@@ -54,7 +54,7 @@ class ReunionViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminOrJewrinOrganisation()]
+            return [IsSuperAdminOrganisation()]
         return [IsAuthenticated()]
 
     def perform_create(self, serializer):
@@ -69,7 +69,7 @@ class ProcesVerbalViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminOrJewrinOrganisation()]
+            return [IsSuperAdminOrganisation()]
         return [IsAuthenticated()]
 
 
@@ -81,7 +81,7 @@ class DecisionViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminOrJewrinOrganisation()]
+            return [IsSuperAdminOrganisation()]
         return [IsAuthenticated()]
 
     def perform_create(self, serializer):
@@ -96,7 +96,7 @@ class VoteViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminOrJewrinOrganisation()]
+            return [IsSuperAdminOrganisation()]
         return [IsAuthenticated()]
 
     def perform_create(self, serializer):
@@ -110,7 +110,7 @@ class StructureOrganisationViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminOrJewrinOrganisation()]
+            return [IsSuperAdminOrganisation()]
         return [IsAuthenticated()]
 
 
@@ -122,7 +122,7 @@ class RapportActiviteViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminOrJewrinOrganisation()]
+            return [IsSuperAdminOrganisation()]
         return [IsAuthenticated()]
 
     def perform_create(self, serializer):
@@ -136,7 +136,7 @@ class MaterielViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminOrJewrinOrganisation()]
+            return [IsSuperAdminOrganisation()]
         return [IsAuthenticated()]
 
     @action(detail=False, methods=['get'])
@@ -209,7 +209,7 @@ class RegroupementViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         # Lecture publique (structure visible par tous), écriture réservée aux responsables
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminOrJewrinOrganisation()]
+            return [IsSuperAdminOrganisation()]
         if self.action in ['list', 'retrieve']:
             return [AllowAny()]
         return [IsAuthenticated()]
@@ -222,7 +222,7 @@ class SectionViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminOrJewrinOrganisation()]
+            return [IsSuperAdminOrganisation()]
         if self.action in ['list', 'retrieve']:
             return [AllowAny()]
         return [IsAuthenticated()]
@@ -235,7 +235,7 @@ class SousSectionViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminOrJewrinOrganisation()]
+            return [IsSuperAdminOrganisation()]
         if self.action in ['list', 'retrieve']:
             return [AllowAny()]
         return [IsAuthenticated()]
@@ -248,7 +248,7 @@ class DahiraViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminOrJewrinOrganisation()]
+            return [IsSuperAdminOrganisation()]
         if self.action in ['list', 'retrieve']:
             return [AllowAny()]
         return [IsAuthenticated()]
@@ -261,7 +261,7 @@ class FamilleViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminOrJewrinOrganisation()]
+            return [IsSuperAdminOrganisation()]
         return [IsAuthenticated()]
 
 
@@ -272,5 +272,5 @@ class LienFamilialViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminOrJewrinOrganisation()]
+            return [IsSuperAdminOrganisation()]
         return [IsAuthenticated()]

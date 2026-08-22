@@ -9,6 +9,7 @@ router = DefaultRouter()
 router.register(r'cotisations', views.CotisationMensuelleViewSet)
 router.register(r'levees-fonds', views.LeveeFondsViewSet)
 router.register(r'transactions', views.TransactionViewSet)
+router.register(r'depenses-hadiya', views.DepenseHadiyaViewSet, basename='depense-hadiya')
 router.register(r'dons', views.DonViewSet)
 router.register(r'parametres-financiers', views.ParametresFinanciersViewSet)
 

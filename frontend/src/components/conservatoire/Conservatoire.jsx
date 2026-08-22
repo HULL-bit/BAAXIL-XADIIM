@@ -59,7 +59,7 @@ export default function Conservatoire() {
   const { user } = useAuth()
   const isAdmin = user?.role === 'admin'
   // Vérifier si l'utilisateur est admin ou jewrin conservatoire
-  const canManage = isAdmin || user?.role === 'jewrin' || user?.role === 'jewrine_conservatoire'
+  const canManage = isAdmin
   const [tab, setTab] = useState(0)
   const [documents, setDocuments] = useState([])
   const [archives, setArchives] = useState([])

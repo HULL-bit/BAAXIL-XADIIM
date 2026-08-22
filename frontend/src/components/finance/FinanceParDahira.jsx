@@ -55,8 +55,10 @@ const StatCard = ({ title, value, icon, color }) => (
 )
 
 export default function FinanceParDahira() {
-  const { user } = useAuth()
-  const isAdmin = user?.role === 'admin' || user?.role === 'jewrine_finance'
+  const { permissions, isSuperAdmin } = useAuth()
+  const canView = !!permissions?.can_view_finance
+  const canManage = !!permissions?.can_manage_finance
+  const canViewMembers = !!permissions?.can_view_members
   const [regroupements, setRegroupements] = useState([])
   const [sections, setSections] = useState([])
   const [dahiras, setDahiras] = useState([])
@@ -105,7 +107,7 @@ export default function FinanceParDahira() {
   const [sousSections, setSousSections] = useState([])
 
   useEffect(() => {
-    if (!isAdmin) return
+    if (!canView) return
     Promise.all([
       api.get('organisation/regroupements/').then(({ data }) => data.results || data || []),
       api.get('organisation/sections/').then(({ data }) => data.results || data || []),
@@ -119,15 +121,15 @@ export default function FinanceParDahira() {
         setDahiras(Array.isArray(dah) ? dah : [])
       })
       .catch(() => { setRegroupements([]); setSections([]); setSousSections([]); setDahiras([]) })
-  }, [isAdmin])
+  }, [canView])
 
   // Statistiques globales (toutes cotisations), toujours visibles indépendamment du filtre sélectionné.
   useEffect(() => {
-    if (!isAdmin) return
+    if (!canView) return
     api.get('/finance/cotisations/statistiques/')
       .then(({ data }) => setGlobalStats(data))
       .catch(() => setGlobalStats(null))
-  }, [isAdmin])
+  }, [canView])
 
   // Recherche d'un membre par nom/téléphone (indépendante du regroupement/section/dahira
   // sélectionné) pour consulter directement son état de paiement.
@@ -220,7 +222,7 @@ export default function FinanceParDahira() {
       .get('/finance/cotisations/statistiques/', { params })
       .then(({ data }) => setStats(data))
       .catch(() => setStats(null))
-  }, [selectedRegroupementId, selectedSectionId, selectedDahiraId, filterMois, filterAnnee, filterStatut, isAdmin])
+  }, [selectedRegroupementId, selectedSectionId, selectedDahiraId, filterMois, filterAnnee, filterStatut, canView])
 
   const selectedRegroupement = regroupements.find((r) => r.id === Number(selectedRegroupementId))
   const selectedSection = sections.find((s) => s.id === Number(selectedSectionId))
@@ -520,10 +522,10 @@ export default function FinanceParDahira() {
     { value: 10, label: 'Octobre' }, { value: 11, label: 'Novembre' }, { value: 12, label: 'Décembre' },
   ]
 
-  if (!isAdmin) {
+  if (!canView) {
     return (
       <Box>
-        <Typography variant="h6" color="text.secondary">Accès réservé aux administrateurs et Jewrine Finance.</Typography>
+        <Typography variant="h6" color="text.secondary">Accès réservé aux rôles ayant la visibilité finance (Super Admin, rôles nationaux/section, Secrétaire aux Finances de Cellule, Président de Cellule).</Typography>
       </Box>
     )
   }
@@ -537,6 +539,7 @@ export default function FinanceParDahira() {
         Sélectionnez un regroupement, une section ou un dahira pour voir les membres et les cotisations. Pour ajouter des cotisations, cliquez sur le bouton puis choisissez un regroupement, une section ou un dahira et sélectionnez un ou plusieurs membres.
       </Typography>
 
+      {canViewMembers && (
       <Card sx={{ mb: 3, borderLeft: `4px solid ${COLORS.vert}`, borderRadius: 2 }}>
         <CardContent>
           <Typography variant="subtitle1" sx={{ color: COLORS.vertFonce, fontWeight: 600, mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -621,6 +624,7 @@ export default function FinanceParDahira() {
           )}
         </CardContent>
       </Card>
+      )}
 
       {globalStats && (
         <Grid container spacing={2} sx={{ mb: 3 }}>
@@ -659,6 +663,7 @@ export default function FinanceParDahira() {
         </Grid>
       )}
 
+      {isSuperAdmin && (
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3, flexWrap: 'wrap' }}>
         <Typography variant="body2" sx={{ color: COLORS.vertFonce, fontWeight: 600 }}>
           Export du rapport des cotisations{currentFilterLabel ? ` (${currentFilterLabel})` : ' (toutes sections)'} :
@@ -705,6 +710,7 @@ export default function FinanceParDahira() {
           Export PDF
         </Button>
       </Box>
+      )}
 
       {stats && (
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
@@ -807,14 +813,16 @@ export default function FinanceParDahira() {
           <MenuItem value="retard">En retard</MenuItem>
           <MenuItem value="annulee">Annulée</MenuItem>
         </TextField>
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={handleOpenAssign}
-          sx={{ bgcolor: COLORS.vert, '&:hover': { bgcolor: COLORS.vertFonce } }}
-        >
-          Ajouter cotisations / assignations
-        </Button>
+        {canManage && (
+          <Button
+            variant="contained"
+            startIcon={<Add />}
+            onClick={handleOpenAssign}
+            sx={{ bgcolor: COLORS.vert, '&:hover': { bgcolor: COLORS.vertFonce } }}
+          >
+            Ajouter cotisations / assignations
+          </Button>
+        )}
       </Box>
 
       {message.text && (
@@ -834,37 +842,41 @@ export default function FinanceParDahira() {
             <Typography variant="h6" sx={{ color: COLORS.vertFonce }}>
               Cotisations {selectedDahiraId ? 'de ce dahira' : selectedSectionId ? 'de cette section' : 'de ce regroupement'}
             </Typography>
-            <Button
-              variant="contained"
-              color="success"
-              size="small"
-              startIcon={validating ? <CircularProgress size={16} color="inherit" /> : <Check />}
-              disabled={selectedCount === 0 || validating}
-              onClick={handleValiderPaiements}
-            >
-              Valider {selectedCount > 0 ? `${selectedCount} paiement(s)` : 'les paiements sélectionnés'}
-            </Button>
+            {canManage && (
+              <Button
+                variant="contained"
+                color="success"
+                size="small"
+                startIcon={validating ? <CircularProgress size={16} color="inherit" /> : <Check />}
+                disabled={selectedCount === 0 || validating}
+                onClick={handleValiderPaiements}
+              >
+                Valider {selectedCount > 0 ? `${selectedCount} paiement(s)` : 'les paiements sélectionnés'}
+              </Button>
+            )}
           </Box>
           <TableContainer component={Paper} sx={{ borderLeft: `4px solid ${COLORS.vert}`, borderRadius: 2 }}>
             <Table size="small">
               <TableHead>
                 <TableRow sx={{ bgcolor: `${COLORS.vert}15` }}>
-                  <TableCell padding="checkbox">
-                    <Checkbox
-                      size="small"
-                      checked={validatableCotisations.length > 0 && selectedCount === validatableCotisations.length}
-                      indeterminate={selectedCount > 0 && selectedCount < validatableCotisations.length}
-                      onChange={(e) => handleSelectAllCotisations(e.target.checked)}
-                      disabled={validatableCotisations.length === 0}
-                    />
-                  </TableCell>
+                  {canManage && (
+                    <TableCell padding="checkbox">
+                      <Checkbox
+                        size="small"
+                        checked={validatableCotisations.length > 0 && selectedCount === validatableCotisations.length}
+                        indeterminate={selectedCount > 0 && selectedCount < validatableCotisations.length}
+                        onChange={(e) => handleSelectAllCotisations(e.target.checked)}
+                        disabled={validatableCotisations.length === 0}
+                      />
+                    </TableCell>
+                  )}
                   <TableCell>Membre</TableCell>
                   <TableCell>Mois / Année</TableCell>
                   <TableCell>Type</TableCell>
                   <TableCell>Montant</TableCell>
                   <TableCell>Référence Wave</TableCell>
                   <TableCell>Statut</TableCell>
-                  <TableCell align="right">Actions</TableCell>
+                  {canManage && <TableCell align="right">Actions</TableCell>}
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -873,25 +885,29 @@ export default function FinanceParDahira() {
                 ) : (
                   cotisations.map((c) => (
                     <TableRow key={c.id} hover selected={!!selectedCotisationIds[c.id]}>
-                      <TableCell padding="checkbox">
-                        <Checkbox
-                          size="small"
-                          checked={!!selectedCotisationIds[c.id]}
-                          onChange={() => handleToggleCotisation(c.id)}
-                          disabled={c.statut === 'payee'}
-                        />
-                      </TableCell>
+                      {canManage && (
+                        <TableCell padding="checkbox">
+                          <Checkbox
+                            size="small"
+                            checked={!!selectedCotisationIds[c.id]}
+                            onChange={() => handleToggleCotisation(c.id)}
+                            disabled={c.statut === 'payee'}
+                          />
+                        </TableCell>
+                      )}
                       <TableCell>{c.membre_nom || `Membre #${c.membre}`}</TableCell>
-                      <TableCell>{c.mois}/{c.annee}</TableCell>
+                      <TableCell>{c.mois === 0 ? `Année ${c.annee}` : `${c.mois}/${c.annee}`}</TableCell>
                       <TableCell>{c.type_cotisation === 'assignation' ? 'Assignation' : 'Mensualité'}</TableCell>
                       <TableCell>{Number(c.montant).toLocaleString('fr-FR')} FCFA</TableCell>
                       <TableCell>{c.reference_wave || '—'}</TableCell>
                       <TableCell><StatutCotisationChip statut={c.statut} /></TableCell>
-                      <TableCell align="right">
-                        <IconButton size="small" onClick={() => handleOpenEditCotisation(c)} sx={{ color: COLORS.vert }} title="Modifier">
-                          <Edit fontSize="small" />
-                        </IconButton>
-                      </TableCell>
+                      {canManage && (
+                        <TableCell align="right">
+                          <IconButton size="small" onClick={() => handleOpenEditCotisation(c)} sx={{ color: COLORS.vert }} title="Modifier">
+                            <Edit fontSize="small" />
+                          </IconButton>
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))
                 )}

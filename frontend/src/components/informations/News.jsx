@@ -27,10 +27,7 @@ const COLORS = { vert: '#2DA9E1', vertFonce: '#0F4D71' }
 
 export default function News() {
   const { user } = useAuth()
-  const canPost = useMemo(() => {
-    const role = user?.role || ''
-    return role === 'admin' || role === 'jewrin' || String(role).toLowerCase().startsWith('jewrine_')
-  }, [user])
+  const canPost = useMemo(() => user?.role === 'admin', [user])
 
   const [list, setList] = useState([])
   const [loading, setLoading] = useState(true)

@@ -12,6 +12,7 @@ urlpatterns = [
     path('me/change-password/', views.change_password),
     path('users/', views.UserList.as_view()),
     path('users/<int:pk>/', views.UserDetail.as_view()),
+    path('users/import-excel/', views.import_membres_excel),
     path('admin/statistiques/', views.stats_admin),
     path('me/badges/', views.mes_badges),
     path('export-membres/', export_membres_view),

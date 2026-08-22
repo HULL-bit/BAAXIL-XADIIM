@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from django.db import models
 
-from apps.accounts.permissions import IsAdminOrJewrinCommunication
+from apps.accounts.permissions import IsSuperAdminCommunication
 from .models import (
     Groupe,
     Evenement,
@@ -133,7 +133,7 @@ class NewsViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = News.objects.select_related('auteur').all().order_by('-date_creation')
-        if not IsAdminOrJewrinCommunication().has_permission(self.request, self):
+        if not IsSuperAdminCommunication().has_permission(self.request, self):
             qs = qs.filter(est_publiee=True)
         user = self.request.user
         return qs.annotate(
@@ -146,7 +146,7 @@ class NewsViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminOrJewrinCommunication()]
+            return [IsSuperAdminCommunication()]
         return [IsAuthenticated()]
 
     def perform_create(self, serializer):

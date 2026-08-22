@@ -314,6 +314,10 @@ class Dahira(models.Model):
     adresse = models.CharField(max_length=255, blank=True)
     ville = models.CharField(max_length=100, blank=True)
     actif = models.BooleanField(default=True)
+    est_pilote = models.BooleanField(
+        default=False,
+        help_text="Cellule pilote : seules ces cellules sont visibles par les rôles nationaux/section durant la phase pilote.",
+    )
 
     class Meta:
         verbose_name = "Dahira"

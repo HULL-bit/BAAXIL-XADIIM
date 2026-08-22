@@ -51,56 +51,53 @@ const SIDEBAR_WIDTH = 280
 const SIDEBAR_COLLAPSED = 72
 const SIDEBAR_MOBILE_WIDTH = 240
 
-// Menus regroupés par section (admin, membre, jewrin)
-const sectionsAdmin = [
-  {
-    title: 'Navigation',
-    items: [
-      { label: 'Page d\'accueil', path: '/accueil', icon: <HomeIcon /> },
-      { label: 'Tableau de bord', path: '/admin', icon: <DashboardIcon /> },
-    ],
-  },
-  {
-    title: 'Projet gestion membres',
-    items: [
-      { label: 'Gestion des membres', path: '/admin/membres', icon: <PeopleIcon /> },
-      { label: 'Admin organisation', path: '/organisation/admin', icon: <OrgIcon /> },
-    ],
-  },
-  { title: 'Projet gestion informations', items: [{ label: 'Événements', path: '/informations/evenements', icon: <EventIcon /> }, { label: 'News', path: '/informations/news', icon: <NewsIcon /> }] },
-  {
-    title: 'Projet gestion finance',
-    items: [
-      { label: 'Barkelou (cotisations)', path: '/finance/barkelou', icon: <FinanceIcon /> },
-      { label: 'Finance par Dahira', path: '/finance/par-dahira', icon: <FinanceIcon /> },
-      { label: 'Synthèse hiérarchique', path: '/finance/hierarchie', icon: <FinanceIcon /> },
-      // Levées de fonds désactivées pour l'instant
-      // { label: 'Levées de fonds', path: '/finance/levees-fonds', icon: <FinanceIcon /> },
-    ],
-  },
-  // Modules désactivés: culturelle, sociale, conservatoire, scientifique, organisation
-  // {
-  //   title: 'Projet gestion culturelle',
-  //   items: [
-  //     { label: 'Programme Kamil', path: '/culturelle/kamil', icon: <KamilIcon /> },
-  //     { label: 'Vue admin JUKKI', path: '/culturelle/validations', icon: <ValidIcon /> },
-  //     { label: 'Activités religieuses', path: '/culturelle/activites-religieuses', icon: <MosqueIcon /> },
-  //   ],
-  // },
-  {
+// Menu de gestion (Super Admin + tous les rôles scopés de la matrice pilote) :
+// construit dynamiquement à partir des droits reçus de l'API (/auth/me/), pour que
+// chaque rôle ne voie QUE ce qui le concerne (principe de l'audit) sans dupliquer la
+// logique de périmètre côté frontend.
+function buildSectionsGestion(permissions, isSuperAdmin) {
+  const sections = [
+    {
+      title: 'Navigation',
+      items: [
+        { label: 'Page d\'accueil', path: '/accueil', icon: <HomeIcon /> },
+        { label: 'Tableau de bord', path: '/admin', icon: <DashboardIcon /> },
+      ],
+    },
+  ]
+
+  if (permissions.can_view_members) {
+    const items = [{ label: 'Gestion des membres', path: '/admin/membres', icon: <PeopleIcon /> }]
+    if (isSuperAdmin) items.push({ label: 'Admin organisation', path: '/organisation/admin', icon: <OrgIcon /> })
+    sections.push({ title: 'Projet gestion membres', items })
+  } else if (isSuperAdmin) {
+    sections.push({ title: 'Projet gestion membres', items: [{ label: 'Admin organisation', path: '/organisation/admin', icon: <OrgIcon /> }] })
+  }
+
+  sections.push({ title: 'Projet gestion informations', items: [{ label: 'Événements', path: '/informations/evenements', icon: <EventIcon /> }, { label: 'News', path: '/informations/news', icon: <NewsIcon /> }] })
+
+  const financeItems = [{ label: 'Barkelou (cotisations)', path: '/finance/barkelou', icon: <FinanceIcon /> }]
+  if (permissions.can_view_finance) {
+    financeItems.push({ label: 'Finance par Dahira', path: '/finance/par-dahira', icon: <FinanceIcon /> })
+    financeItems.push({ label: 'Dépenses & Hadiya', path: '/finance/depenses-hadiya', icon: <FinanceIcon /> })
+  }
+  if (permissions.can_view_national_synthese) {
+    financeItems.push({ label: 'Synthèse hiérarchique', path: '/finance/hierarchie', icon: <FinanceIcon /> })
+  }
+  sections.push({ title: 'Projet gestion finance', items: financeItems })
+
+  // Modules désactivés pour la phase pilote: culturelle, sociale, conservatoire, scientifique, organisation (hors admin)
+  sections.push({
     title: 'Projet gestion communication',
     items: [
       { label: 'Messagerie', path: '/communication/messagerie', icon: <MessageIcon /> },
       { label: 'Notifications', path: '/communication/notifications', icon: <NotifIcon /> },
     ],
-  },
-  // { title: 'Projet gestion sociale', items: [{ label: 'Sociale', path: '/sociale/projets', icon: <SocialIcon /> }] },
-  // { title: 'Projet gestion conservatoire', items: [{ label: 'Conservatoire', path: '/conservatoire', icon: <ConservatoireIcon /> }] },
-  { title: 'Projet gestion bibliothèque', items: [{ label: 'Bibliothèque', path: '/bibliotheque', icon: <BibliothequeIcon /> }] },
-  // { title: 'Projet gestion scientifique', items: [{ label: 'Cours & Formation', path: '/scientifique/cours', icon: <ScientifiqueIcon /> }] },
-  // { title: 'Projet gestion organisation', items: [{ label: 'Sections & Dahira', path: '/organisation/sections-dahiras', icon: <OrgIcon /> }, { label: 'Réunions & matériels', path: '/organisation/reunions', icon: <OrgIcon /> }] },
-  { title: 'Compte', items: [{ label: 'Mon profil', path: '/comptes/profil', icon: <PersonIcon /> }] },
-]
+  })
+  sections.push({ title: 'Projet gestion bibliothèque', items: [{ label: 'Bibliothèque', path: '/bibliotheque', icon: <BibliothequeIcon /> }] })
+  sections.push({ title: 'Compte', items: [{ label: 'Mon profil', path: '/comptes/profil', icon: <PersonIcon /> }] })
+  return sections
+}
 
 const sectionsMembre = [
   {
@@ -143,45 +140,6 @@ const sectionsMembre = [
   { title: 'Compte', items: [{ label: 'Mon profil', path: '/comptes/profil', icon: <PersonIcon /> }] },
 ]
 
-const sectionsJewrin = [
-  {
-    title: 'Navigation',
-    items: [
-      { label: 'Page d\'accueil', path: '/accueil', icon: <HomeIcon /> },
-      { label: 'Tableau de bord', path: '/jewrin', icon: <DashboardIcon /> },
-    ],
-  },
-  {
-    title: 'Projet gestion finance',
-    items: [
-      { label: 'Barkelou (cotisations)', path: '/finance/barkelou', icon: <FinanceIcon /> },
-      { label: 'Finance par Dahira', path: '/finance/par-dahira', icon: <FinanceIcon /> },
-      { label: 'Synthèse hiérarchique', path: '/finance/hierarchie', icon: <FinanceIcon /> },
-      // Levées de fonds désactivées pour l'instant
-      // { label: 'Levées de fonds', path: '/finance/levees-fonds', icon: <FinanceIcon /> },
-    ],
-  },
-  // Modules désactivés: culturelle, conservatoire
-  // {
-  //   title: 'Projet gestion culturelle',
-  //   items: [
-  //     { label: 'Programme Kamil', path: '/culturelle/kamil', icon: <KamilIcon /> },
-  //     { label: 'Vue admin JUKKI', path: '/culturelle/validations', icon: <ValidIcon /> },
-  //     { label: 'Activités religieuses', path: '/culturelle/activites-religieuses', icon: <MosqueIcon /> },
-  //   ],
-  // },
-  { title: 'Projet gestion informations', items: [{ label: 'Événements', path: '/informations/evenements', icon: <EventIcon /> }, { label: 'News', path: '/informations/news', icon: <NewsIcon /> }] },
-  {
-    title: 'Projet gestion communication',
-    items: [
-      { label: 'Messagerie', path: '/communication/messagerie', icon: <MessageIcon /> },
-      { label: 'Notifications', path: '/communication/notifications', icon: <NotifIcon /> },
-    ],
-  },
-  // { title: 'Projet gestion conservatoire', items: [{ label: 'Conservatoire', path: '/conservatoire', icon: <ConservatoireIcon /> }] },
-  { title: 'Projet gestion bibliothèque', items: [{ label: 'Bibliothèque', path: '/bibliotheque', icon: <BibliothequeIcon /> }] },
-  { title: 'Compte', items: [{ label: 'Mon profil', path: '/comptes/profil', icon: <PersonIcon /> }] },
-]
 
 function MenuItemBtn({ item, selected, collapsed, onNavigate, onClose }) {
   const isAccueil = item.path === '/accueil'
@@ -301,15 +259,11 @@ function SidebarContent({ sections, location, navigate, collapsed, onClose }) {
 export default function Sidebar({ open, onClose, collapsed, onToggleCollapse }) {
   const navigate = useNavigate()
   const location = useLocation()
-  const { user } = useAuth()
+  const { user, permissions, isSuperAdmin, isGestionRole } = useAuth()
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
 
-  const isJewrine =
-    !!user?.role &&
-    (user.role === 'jewrin' ||
-      user.role.toLowerCase().startsWith('jewrine_'))
-  const sections = user?.role === 'admin' ? sectionsAdmin : isJewrine ? sectionsJewrin : sectionsMembre
+  const sections = isGestionRole ? buildSectionsGestion(permissions, isSuperAdmin) : sectionsMembre
   const width = collapsed ? SIDEBAR_COLLAPSED : SIDEBAR_WIDTH
   const mobileWidth = Math.min(SIDEBAR_MOBILE_WIDTH, Math.round((typeof window !== 'undefined' ? window.innerWidth : 360) * 0.8))
 

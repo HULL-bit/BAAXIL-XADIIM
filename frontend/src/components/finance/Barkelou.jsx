@@ -17,6 +17,7 @@ import {
   TableRow,
   Paper,
   Grid,
+  Chip,
 } from '@mui/material'
 import { AccountBalance, Payment } from '@mui/icons-material'
 import api from '../../services/api'
@@ -74,7 +75,7 @@ export default function Barkelou() {
         reference_wave: reference,
         mode_paiement: 'wave',
       })
-      setMessage({ type: 'success', text: "Déclaration envoyée. Le jewrine finance validera votre paiement après vérification." })
+      setMessage({ type: 'success', text: "Déclaration envoyée. Le Secrétaire aux Finances de votre cellule validera votre paiement après vérification." })
       loadCotisations()
     } catch (err) {
       setMessage({ type: 'error', text: err.response?.data?.detail || "Erreur lors de l'envoi de la déclaration." })
@@ -156,7 +157,7 @@ export default function Barkelou() {
                   </Box>
                   {cotisationCourante.reference_wave && (
                     <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
-                      Référence envoyée : {cotisationCourante.reference_wave} — en attente de validation par le jewrine finance.
+                      Référence envoyée : {cotisationCourante.reference_wave} — en attente de validation par le Secrétaire aux Finances de cellule.
                     </Typography>
                   )}
                 </Grid>
@@ -196,7 +197,8 @@ export default function Barkelou() {
           <Table size="small">
             <TableHead>
               <TableRow sx={{ bgcolor: `${COLORS.vert}15` }}>
-                <TableCell>Mois</TableCell>
+                <TableCell>Période</TableCell>
+                <TableCell>Type</TableCell>
                 <TableCell>Montant</TableCell>
                 <TableCell>Statut</TableCell>
                 <TableCell>Date de paiement</TableCell>
@@ -204,11 +206,16 @@ export default function Barkelou() {
             </TableHead>
             <TableBody>
               {cotisations.length === 0 ? (
-                <TableRow><TableCell colSpan={4} align="center">Aucune cotisation pour {filterAnnee}.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} align="center">Aucune cotisation pour {filterAnnee}.</TableCell></TableRow>
               ) : (
                 [...cotisations].sort((a, b) => b.mois - a.mois).map((c) => (
                   <TableRow key={c.id}>
-                    <TableCell>{MOIS.find((m) => m.value === c.mois)?.label || c.mois}</TableCell>
+                    <TableCell>{c.type_cotisation === 'assignation' ? `Année ${c.annee}` : (MOIS.find((m) => m.value === c.mois)?.label || c.mois)}</TableCell>
+                    <TableCell>
+                      {c.type_cotisation === 'assignation'
+                        ? <Chip label={c.objet_assignation || 'Assignation annuelle'} size="small" color="secondary" />
+                        : <Chip label="Mensualité" size="small" variant="outlined" />}
+                    </TableCell>
                     <TableCell>{Number(c.montant).toLocaleString('fr-FR')} FCFA</TableCell>
                     <TableCell><StatutCotisationChip statut={c.statut} /></TableCell>
                     <TableCell>{c.date_paiement ? new Date(c.date_paiement).toLocaleDateString('fr-FR') : '—'}</TableCell>

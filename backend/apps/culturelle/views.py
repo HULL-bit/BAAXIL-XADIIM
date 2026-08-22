@@ -5,7 +5,7 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
 from django.db.models import Sum, Count
-from apps.accounts.permissions import IsAdminOrJewrinCulturelle, has_admin_access
+from apps.accounts.permissions import IsSuperAdminCulturelle, has_admin_access
 
 from .models import Kamil, Chapitre, Jukki, ProgressionLecture, ActiviteReligieuse, Enseignement, VersementKamil
 from .serializers import KamilSerializer, ChapitreSerializer, JukkiSerializer, ProgressionLectureSerializer, ActiviteReligieuseSerializer, EnseignementSerializer, VersementKamilSerializer
@@ -24,7 +24,7 @@ class KamilViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminOrJewrinCulturelle()]
+            return [IsSuperAdminCulturelle()]
         return [IsAuthenticated()]
 
     def perform_create(self, serializer):
@@ -68,7 +68,7 @@ class ChapitreViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminOrJewrinCulturelle()]
+            return [IsSuperAdminCulturelle()]
         return [IsAuthenticated()]
 
 
@@ -105,7 +105,7 @@ class JukkiViewSet(viewsets.ReadOnlyModelViewSet):
         serializer = JukkiSerializer(qs, many=True)
         return Response(serializer.data)
 
-    @action(detail=True, methods=['patch'], permission_classes=[IsAdminOrJewrinCulturelle()])
+    @action(detail=True, methods=['patch'], permission_classes=[IsSuperAdminCulturelle()])
     def changer_statut(self, request, pk=None):
         """Admin change le statut de validation d'un JUKKI."""
         jukki = self.get_object()
@@ -136,11 +136,11 @@ class ProgressionLectureViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAuthenticated()]  # Admin/Jewrin pour assignations, membre uniquement via marquer_comme_lu
+            return [IsAuthenticated()]  # Super Admin pour assignations, membre uniquement via marquer_comme_lu
         return [IsAuthenticated()]
 
     def perform_create(self, serializer):
-        # Admin/Jewrin peut assigner un juzz à un membre ; sinon l'assignation est pour soi
+        # Super Admin peut assigner un juzz à un membre ; sinon l'assignation est pour soi
         if has_admin_access(self.request.user, 'culturelle') and self.request.data.get('membre'):
             membre = get_object_or_404(User, id=self.request.data.get('membre'))
         else:
@@ -203,7 +203,7 @@ class ActiviteReligieuseViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminOrJewrinCulturelle()]
+            return [IsSuperAdminCulturelle()]
         return [IsAuthenticated()]
 
     def perform_create(self, serializer):
@@ -233,7 +233,7 @@ class VersementKamilViewSet(viewsets.ModelViewSet):
         return qs
 
     def get_permissions(self):
-        # Membres peuvent créer, admins/jewrins peuvent valider/refuser/supprimer
+        # Membres peuvent créer, Super Admin peut valider/refuser/supprimer
         if self.action in ['update', 'partial_update', 'destroy']:
             return [IsAdminUser()]
         return [IsAuthenticated()]
@@ -254,7 +254,7 @@ class VersementKamilViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def valider(self, request, pk=None):
-        """Admin/Jewrin valide un versement"""
+        """Super Admin valide un versement"""
         if not has_admin_access(request.user, 'culturelle'):
             return Response({'detail': 'Non autorisé'}, status=403)
         versement = self.get_object()
@@ -276,7 +276,7 @@ class VersementKamilViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def refuser(self, request, pk=None):
-        """Admin/Jewrin refuse un versement"""
+        """Super Admin refuse un versement"""
         if not has_admin_access(request.user, 'culturelle'):
             return Response({'detail': 'Non autorisé'}, status=403)
         versement = self.get_object()

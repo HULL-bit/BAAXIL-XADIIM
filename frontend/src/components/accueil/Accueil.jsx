@@ -67,6 +67,27 @@ export default function Accueil() {
     return () => clearInterval(t)
   }, [])
 
+  // Révélation "cinématique" des sections au défilement (voir .reveal / .reveal-in
+  // dans global.css) : chaque section apparaît en douceur quand elle entre à l'écran,
+  // au lieu d'être visible d'un bloc dès le chargement de la page.
+  useEffect(() => {
+    const els = document.querySelectorAll('.reveal')
+    if (!els.length || typeof IntersectionObserver === 'undefined') return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('reveal-in')
+            observer.unobserve(entry.target)
+          }
+        })
+      },
+      { threshold: 0.12, rootMargin: '0px 0px -60px 0px' },
+    )
+    els.forEach((el) => observer.observe(el))
+    return () => observer.disconnect()
+  }, [])
+
   const navLinks = [
     { id: 'mot-president', label: 'Mot du président' },
     { id: 'actualites', label: 'Actualités' },
@@ -489,7 +510,7 @@ export default function Accueil() {
 
       <Container maxWidth="lg" sx={{ py: { xs: 4, sm: 6, md: 10 }, px: { xs: 2, sm: 3, md: 4 } }}>
         {/* Mot du président */}
-        <Box sx={{ mb: { xs: 6, sm: 8, md: 12 } }} id="mot-president">
+        <Box className="reveal" sx={{ mb: { xs: 6, sm: 8, md: 12 } }} id="mot-president">
           <Typography 
             variant="h4" 
             sx={{ 
@@ -586,7 +607,7 @@ export default function Accueil() {
         </Box>
 
         {/* Actualités et événements */}
-        <Box sx={{ mb: { xs: 6, sm: 8, md: 12 } }} id="actualites">
+        <Box className="reveal" sx={{ mb: { xs: 6, sm: 8, md: 12 } }} id="actualites">
           <Typography 
             variant="h4" 
             sx={{ 
@@ -688,7 +709,7 @@ export default function Accueil() {
         </Box>
 
         {/* Participation */}
-        <Box sx={{ mb: { xs: 6, sm: 8, md: 12 } }} id="participation">
+        <Box className="reveal" sx={{ mb: { xs: 6, sm: 8, md: 12 } }} id="participation">
           <Typography
             variant="h4"
             sx={{
@@ -794,31 +815,38 @@ export default function Accueil() {
         </Box>
 
         {/* Galerie Multimédia (mise en avant) */}
-        <Box sx={{ mb: { xs: 6, sm: 8, md: 12 } }} id="realisations">
-          <Typography 
-            variant="h4" 
-            sx={{ 
-              color: COLORS.vert, 
-              mb: { xs: 2, sm: 3, md: 4 }, 
-              display: 'flex', 
-              alignItems: 'center', 
+        <Box className="reveal" sx={{ mb: { xs: 6, sm: 8, md: 12 } }} id="galerie">
+          <Typography
+            variant="h4"
+            sx={{
+              color: COLORS.vert,
+              mb: { xs: 2, sm: 3, md: 4 },
+              display: 'flex',
+              alignItems: 'center',
               gap: 1,
               fontSize: { xs: '1.5rem', sm: '2rem', md: '2.125rem' },
             }}
           >
-            <AutoStories sx={{ fontSize: { xs: 24, sm: 28, md: 32 } }} /> Galerie Multimédia
+            <AutoStories sx={{ fontSize: { xs: 24, sm: 28, md: 32 } }} /> Galerie
           </Typography>
           <Grid container spacing={{ xs: 2, sm: 2, md: 3 }}>
             {[
-              { img: '/images/ahibahil/assemblee.jpeg', titre: 'Assemblée générale', desc: 'Grand rassemblement sous la tente, bleu et blanc.' },
-              { img: '/images/ahibahil/sections.jpeg', titre: 'Sections & Dahira', desc: 'Régions du Sénégal et diaspora.' },
+              { img: '/images/ahibahil/assemblee.jpeg', titre: 'Assemblée générale', desc: 'Grand rassemblement Ahibahil Khadim sous la tente, en bleu et blanc.' },
+              { img: '/images/ahibahil/sections.jpeg', titre: 'Sections & Dahira', desc: 'Les sections et dahiras répartis dans les régions et la diaspora.' },
               { img: '/images/ahibahil/mot-president.jpeg', titre: 'Mot du président', desc: 'S Baara Mbacke Mouhamed, Conseil exécutif 2024.' },
-              { img: '/images/ahibahil/assemblee.jpeg', titre: 'Récitation et dévotion', desc: 'Récitals et événements communautaires.' },
-              { img: '/images/ahibahil/sections.jpeg', titre: 'Vie communautaire', desc: 'Membres de tous âges, sérénité et partage.' },
-              { img: '/images/ahibahil/mot-president.jpeg', titre: 'Tradition et spiritualité', desc: 'L\'héritage Ahibahil Khadim.' },
             ].map((item, idx) => (
               <Grid item xs={12} sm={6} md={4} key={idx}>
-                <Card className="img-fade-in" sx={{ borderRadius: 2, overflow: 'hidden', borderLeft: `4px solid ${COLORS.vert}`, boxShadow: `0 4px 20px ${COLORS.bleu}15`, minHeight: { xs: 280, sm: 300, md: 320 } }}>
+                <Card
+                  className="img-fade-in"
+                  sx={{
+                    borderRadius: 2,
+                    overflow: 'hidden',
+                    borderLeft: `4px solid ${COLORS.vert}`,
+                    boxShadow: `0 4px 20px ${COLORS.bleu}15`,
+                    minHeight: { xs: 280, sm: 300, md: 320 },
+                    animationDelay: `${idx * 120}ms`,
+                  }}
+                >
                   <Box className="img-zoom-wrap" sx={{ borderRadius: 0 }}>
                     <CardMedia
                       className="img-zoom"
@@ -832,9 +860,9 @@ export default function Accueil() {
                     />
                   </Box>
                   <CardContent sx={{ p: { xs: 1.5, sm: 2, md: 2 } }}>
-                    <Typography 
-                      variant="h6" 
-                      sx={{ 
+                    <Typography
+                      variant="h6"
+                      sx={{
                         color: COLORS.vert,
                         fontSize: { xs: '1rem', sm: '1.25rem', md: '1.5rem' },
                         mb: { xs: 0.5, sm: 1 },
@@ -842,8 +870,8 @@ export default function Accueil() {
                     >
                       {item.titre}
                     </Typography>
-                    <Typography 
-                      variant="body2" 
+                    <Typography
+                      variant="body2"
                       color="text.secondary"
                       sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem', md: '0.875rem' } }}
                     >
@@ -877,45 +905,8 @@ export default function Accueil() {
           </Box>
         </Dialog>
 
-        {/* Galerie — encore plus d'images */}
-        <Box sx={{ mb: { xs: 6, sm: 8, md: 12 } }} id="galerie">
-          <Typography 
-            variant="h4" 
-            sx={{ 
-              color: COLORS.vert, 
-              mb: { xs: 2, sm: 3, md: 4 },
-              fontSize: { xs: '1.5rem', sm: '2rem', md: '2.125rem' },
-            }}
-          >
-            Galerie
-          </Typography>
-          <Grid container spacing={{ xs: 1.5, sm: 2, md: 2 }}>
-            {['/images/ahibahil/assemblee.jpeg', '/images/ahibahil/sections.jpeg', '/images/ahibahil/mot-president.jpeg', '/images/ahibahil/assemblee.jpeg', '/images/ahibahil/sections.jpeg', '/images/ahibahil/mot-president.jpeg'].map((src, i) => (
-              <Grid item xs={6} sm={4} md={2} key={i}>
-                <Box className="img-zoom-wrap" sx={{ borderRadius: 2, border: `2px solid ${COLORS.vert}`, boxShadow: `0 4px 12px ${COLORS.bleu}20` }}>
-                  <Box
-                    component="img"
-                    className="img-fade-in img-zoom"
-                    loading="lazy"
-                    src={src}
-                    alt={`Galerie Ahibahil ${i + 1}`}
-                    onClick={() => setPreviewImage({ img: src, titre: `Galerie Ahibahil ${i + 1}` })}
-                    sx={{
-                      width: '100%',
-                      height: { xs: 140, sm: 180, md: 220 },
-                      objectFit: 'cover',
-                      display: 'block',
-                      cursor: 'zoom-in',
-                    }}
-                  />
-                </Box>
-              </Grid>
-            ))}
-          </Grid>
-        </Box>
-
         {/* Mission, Xidma & Kurel */}
-        <Box sx={{ mb: { xs: 6, sm: 8, md: 12 } }} id="mission">
+        <Box className="reveal" sx={{ mb: { xs: 6, sm: 8, md: 12 } }} id="mission">
           <Typography 
             variant="h4" 
             sx={{ 
@@ -994,7 +985,7 @@ export default function Accueil() {
         </Box>
 
         {/* Section Localisation */}
-        <Box sx={{ mb: { xs: 6, sm: 8, md: 12 } }} id="localisation">
+        <Box className="reveal" sx={{ mb: { xs: 6, sm: 8, md: 12 } }} id="localisation">
           <Typography 
             variant="h4" 
             sx={{ 

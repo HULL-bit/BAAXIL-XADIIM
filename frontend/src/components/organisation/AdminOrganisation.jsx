@@ -18,6 +18,9 @@ import {
   DialogContent,
   DialogActions,
   Alert,
+  Switch,
+  FormControlLabel,
+  Chip,
 } from '@mui/material'
 import { Edit, Delete, Add, Groups, AccountTree } from '@mui/icons-material'
 import api from '../../services/api'
@@ -35,7 +38,7 @@ export default function AdminOrganisation() {
 
   const [regForm, setRegForm] = useState({ id: null, nom: '', code: '', description: '' })
   const [sectionForm, setSectionForm] = useState({ id: null, nom: '', code: '', ville: '', pays: '' })
-  const [dahiraForm, setDahiraForm] = useState({ id: null, nom: '', adresse: '', ville: '' })
+  const [dahiraForm, setDahiraForm] = useState({ id: null, nom: '', adresse: '', ville: '', est_pilote: false })
 
   const [loading, setLoading] = useState(false)
   const [dialogType, setDialogType] = useState(null) // 'reg' | 'section' | 'dahira'
@@ -107,8 +110,8 @@ export default function AdminOrganisation() {
     } else if (type === 'dahira') {
       setDahiraForm(
         entity
-          ? { id: entity.id, nom: entity.nom || '', adresse: entity.adresse || '', ville: entity.ville || '' }
-          : { id: null, nom: '', adresse: '', ville: '' },
+          ? { id: entity.id, nom: entity.nom || '', adresse: entity.adresse || '', ville: entity.ville || '', est_pilote: !!entity.est_pilote }
+          : { id: null, nom: '', adresse: '', ville: '', est_pilote: false },
       )
     }
   }
@@ -225,6 +228,7 @@ export default function AdminOrganisation() {
           nom: dahiraForm.nom,
           adresse: dahiraForm.adresse || '',
           ville: dahiraForm.ville || '',
+          est_pilote: dahiraForm.est_pilote,
         })
       } else {
         await api.post('organisation/dahiras/', {
@@ -232,6 +236,7 @@ export default function AdminOrganisation() {
           adresse: dahiraForm.adresse || '',
           ville: dahiraForm.ville || '',
           sous_section: sousSectionId,
+          est_pilote: dahiraForm.est_pilote,
         })
       }
       setMessage({ type: 'success', text: 'Dahira enregistré.' })
@@ -440,13 +445,14 @@ export default function AdminOrganisation() {
                   <TableCell>Section</TableCell>
                   <TableCell>Adresse</TableCell>
                   <TableCell>Ville</TableCell>
+                  <TableCell>Pilote</TableCell>
                   <TableCell align="right">Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {dahirasFiltered.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} align="center">Aucun dahira</TableCell>
+                    <TableCell colSpan={6} align="center">Aucun dahira</TableCell>
                   </TableRow>
                 ) : (
                   dahirasFiltered.map((d) => {
@@ -458,6 +464,9 @@ export default function AdminOrganisation() {
                         <TableCell>{sec?.nom || '—'}</TableCell>
                         <TableCell>{d.adresse}</TableCell>
                         <TableCell>{d.ville}</TableCell>
+                        <TableCell>
+                          {d.est_pilote ? <Chip label="Pilote" size="small" color="success" /> : <Chip label="—" size="small" variant="outlined" />}
+                        </TableCell>
                         <TableCell align="right">
                           <IconButton size="small" onClick={() => openDialog('dahira', d)}>
                             <Edit fontSize="small" />
@@ -608,6 +617,16 @@ export default function AdminOrganisation() {
             label="Ville"
             value={dahiraForm.ville}
             onChange={(e) => setDahiraForm((f) => ({ ...f, ville: e.target.value }))}
+            sx={{ mb: 2 }}
+          />
+          <FormControlLabel
+            control={
+              <Switch
+                checked={dahiraForm.est_pilote}
+                onChange={(e) => setDahiraForm((f) => ({ ...f, est_pilote: e.target.checked }))}
+              />
+            }
+            label="Cellule pilote (phase pilote — visible pour les rôles nationaux/section)"
           />
         </DialogContent>
         <DialogActions>

@@ -22,11 +22,9 @@ export default function Login() {
     setLoading(true)
     try {
       const user = await login(username, password)
-      const isJewrine =
-        !!user?.role &&
-        (user.role === 'jewrin' ||
-          user.role.toLowerCase().startsWith('jewrine_'))
-      const dest = user?.role === 'admin' ? '/admin' : isJewrine ? '/jewrin' : '/membre'
+      // Tout rôle de la matrice pilote (Super Admin + rôles nationaux/section/cellule)
+      // va sur le tableau de bord de gestion ; seul un simple membre va sur /membre.
+      const dest = user?.role && user.role !== 'membre' ? '/admin' : '/membre'
       navigate(dest)
     } catch (err) {
       setError(err.response?.data?.detail || 'Identifiants incorrects')

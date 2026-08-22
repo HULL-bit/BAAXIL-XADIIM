@@ -54,12 +54,39 @@ export function AuthProvider({ children }) {
     if (userData) setUser(userData)
   }
 
-  const isAdmin = user?.role === 'admin'
-  const isMembre = user?.role === 'membre'
-  const isJewrine =
-    !!user?.role &&
-    (user.role === 'jewrin' ||
-      user.role.toLowerCase().startsWith('jewrine_'))
+  // Rôles de la matrice pilote (audit dahira) — voir apps.accounts.permissions côté
+  // backend, qui est la source de vérité. Le frontend ne fait ici que nommer les
+  // rôles pour l'UI ; toutes les décisions d'accès réelles utilisent `permissions`
+  // (calculé côté backend et renvoyé par /auth/me/), pas une liste de rôles dupliquée.
+  const role = user?.role
+  const isSuperAdmin = role === 'admin'
+  const isMembre = role === 'membre'
+  const isNationalLecture = role === 'national_lecture'
+  const isSecretariatNational = role === 'secretariat_national'
+  const isFinanceNational = role === 'finance_national'
+  const isSectionLecture = role === 'section_lecture'
+  const isCelluleAdmin = role === 'cellule_admin'
+  const isCelluleFinance = role === 'cellule_finance'
+  const isCellulePresident = role === 'cellule_president'
+  // Un rôle "admin-like" a un tableau de bord/sidebar de gestion (par opposition au
+  // simple membre) : tout rôle scopé de la matrice pilote + le Super Admin.
+  const isGestionRole = isSuperAdmin || [
+    isNationalLecture, isSecretariatNational, isFinanceNational,
+    isSectionLecture, isCelluleAdmin, isCelluleFinance, isCellulePresident,
+  ].some(Boolean)
+
+  // Résumé des droits calculé côté backend (apps.accounts.permissions.permissions_summary),
+  // exposé par /auth/me/, /auth/token/ et PATCH /auth/me/. Fallback défensif si absent.
+  const permissions = user?.permissions || {
+    is_super_admin: isSuperAdmin,
+    scope_level: null,
+    can_view_members: false,
+    can_manage_members: false,
+    can_view_finance: false,
+    can_manage_finance: false,
+    can_manage_cellules: false,
+    can_view_national_synthese: false,
+  }
 
   const value = {
     user,
@@ -69,9 +96,18 @@ export function AuthProvider({ children }) {
     logout,
     refreshUser,
     setUserFromProfile,
-    isAdmin,
-    isJewrine,
+    permissions,
+    isAdmin: isSuperAdmin,
+    isSuperAdmin,
     isMembre,
+    isGestionRole,
+    isNationalLecture,
+    isSecretariatNational,
+    isFinanceNational,
+    isSectionLecture,
+    isCelluleAdmin,
+    isCelluleFinance,
+    isCellulePresident,
   }
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

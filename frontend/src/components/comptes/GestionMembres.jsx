@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Box,
   Typography,
@@ -27,11 +28,13 @@ import {
   TableHead,
   TableRow,
   Paper,
+  Tooltip,
 } from '@mui/material'
-import { Add, Edit, Delete, Visibility, VisibilityOff, Search, FilterList, RestartAlt, People, Man, Woman, CheckCircle, Download, PictureAsPdf } from '@mui/icons-material'
+import { Add, Edit, Delete, Visibility, VisibilityOff, Search, FilterList, RestartAlt, People, Man, Woman, CheckCircle, Download, PictureAsPdf, UploadFile, ArrowForwardIos } from '@mui/icons-material'
 import api from '../../services/api'
 import { getMediaUrl } from '../../services/media'
 import { colors } from '../../styles/theme'
+import { useAuth } from '../../context/AuthContext'
 
 const StatCard = ({ title, value, icon, color }) => (
   <Card
@@ -55,15 +58,18 @@ const StatCard = ({ title, value, icon, color }) => (
 )
 
 const PAGE_SIZE = 20
+// Matrice d'accès de la phase pilote — voir apps.accounts.models.CustomUser.ROLE_CHOICES
+// (backend = source de vérité). Seul le Super Admin peut assigner un rôle scopé.
 const ROLES = [
-  { value: 'admin', label: 'Administrateur' },
   { value: 'membre', label: 'Membre' },
-  { value: 'jewrine_conservatoire', label: 'Jewrine Conservatoire' },
-  { value: 'jewrine_finance', label: 'Jewrine Finance' },
-  { value: 'jewrine_culturelle', label: 'Jewrine Culturelle' },
-  { value: 'jewrine_sociale', label: 'Jewrine Sociale' },
-  { value: 'jewrine_communication', label: 'Jewrine Communication' },
-  { value: 'jewrine_organisation', label: 'Jewrine Organisation' },
+  { value: 'admin', label: 'Super Admin' },
+  { value: 'national_lecture', label: 'Administrateur / SG National (lecture seule)' },
+  { value: 'secretariat_national', label: 'Secrétariat National Administratif (lecture seule)' },
+  { value: 'finance_national', label: 'Secrétariat aux Finances National (lecture seule)' },
+  { value: 'section_lecture', label: 'Président / SG de Section (lecture seule)' },
+  { value: 'cellule_admin', label: 'Secrétaire Administratif de Cellule' },
+  { value: 'cellule_finance', label: 'Secrétaire aux Finances de Cellule' },
+  { value: 'cellule_president', label: 'Président de Cellule (lecture seule)' },
 ]
 const GROUPES_SANGUINS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
 
@@ -101,6 +107,9 @@ const initialFilters = {
 }
 
 export default function GestionMembres() {
+  const navigate = useNavigate()
+  const { isSuperAdmin, permissions } = useAuth()
+  const canManage = !!permissions?.can_manage_members
   const [list, setList] = useState([])
   const [count, setCount] = useState(0)
   const [page, setPage] = useState(1)
@@ -138,6 +147,35 @@ export default function GestionMembres() {
   }
 
   const [exportingFormat, setExportingFormat] = useState('')
+  const [openImport, setOpenImport] = useState(false)
+  const [importFile, setImportFile] = useState(null)
+  const [importing, setImporting] = useState(false)
+  const [importResult, setImportResult] = useState(null)
+
+  const handleImport = async () => {
+    if (!importFile) return
+    setImporting(true)
+    setImportResult(null)
+    try {
+      const formData = new FormData()
+      formData.append('file', importFile)
+      // Ne pas fixer Content-Type manuellement : axios doit générer lui-même le
+      // boundary multipart à partir du FormData, sinon la requête est mal formée.
+      const { data } = await api.post('/auth/users/import-excel/', formData)
+      setImportResult(data)
+      await refreshCurrentPage()
+    } catch (err) {
+      setImportResult({ error: err.response?.data?.detail || "Erreur lors de l'import." })
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const handleCloseImport = () => {
+    setOpenImport(false)
+    setImportFile(null)
+    setImportResult(null)
+  }
 
   const handleExport = async (format) => {
     setExportingFormat(format)
@@ -416,14 +454,21 @@ export default function GestionMembres() {
             >
               Export PDF
             </Button>
-            <Button
-              variant="contained"
-              startIcon={<Add />}
-              onClick={handleOpenAdd}
-              sx={{ bgcolor: colors.vert, '&:hover': { bgcolor: colors.vertFonce } }}
-            >
-              Ajouter un membre
-            </Button>
+            {canManage && (
+              <Button variant="outlined" startIcon={<UploadFile />} onClick={() => setOpenImport(true)}>
+                Importer Excel
+              </Button>
+            )}
+            {canManage && (
+              <Button
+                variant="contained"
+                startIcon={<Add />}
+                onClick={handleOpenAdd}
+                sx={{ bgcolor: colors.vert, '&:hover': { bgcolor: colors.vertFonce } }}
+              >
+                Ajouter un membre
+              </Button>
+            )}
           </Box>
         </Box>
 
@@ -555,30 +600,31 @@ export default function GestionMembres() {
           <Typography variant="body2" sx={{ mb: 1.5, color: colors.vertFonce }}>
             {count} résultat{count > 1 ? 's' : ''} — page {page}/{pageCount}
           </Typography>
-          <TableContainer component={Paper} sx={{ borderRadius: 2, borderLeft: `4px solid ${colors.vert}` }}>
+          {/* Colonnes réduites à l'essentiel (le reste — téléphone, profession, carte,
+              CNI, cotisation — est sur la page de détail) pour éviter le défilement
+              horizontal sur les petits écrans. */}
+          <TableContainer component={Paper} sx={{ borderRadius: 2, borderLeft: `4px solid ${colors.vert}`, overflowX: 'auto' }}>
             <Table size="small">
               <TableHead>
                 <TableRow sx={{ bgcolor: `${colors.vert}12` }}>
                   <TableCell>Membre</TableCell>
-                  <TableCell>Sexe</TableCell>
                   <TableCell>Rôle</TableCell>
-                  <TableCell>Téléphone</TableCell>
-                  <TableCell>Profession</TableCell>
-                  <TableCell>Section</TableCell>
-                  <TableCell>Dahira</TableCell>
-                  <TableCell>Carte membre</TableCell>
-                  <TableCell>CNI</TableCell>
-                  <TableCell>Cotisation</TableCell>
+                  <TableCell>Section / Dahira</TableCell>
                   <TableCell>Statut</TableCell>
                   <TableCell align="right">Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {list.length === 0 ? (
-                  <TableRow><TableCell colSpan={12} align="center">Aucun membre ne correspond à ces critères.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={5} align="center">Aucun membre ne correspond à ces critères.</TableCell></TableRow>
                 ) : (
                   list.map((u) => (
-                    <TableRow key={u.id} hover>
+                    <TableRow
+                      key={u.id}
+                      hover
+                      onClick={() => navigate(`/admin/membres/${u.id}`)}
+                      sx={{ cursor: 'pointer' }}
+                    >
                       <TableCell>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                           <Avatar
@@ -595,19 +641,22 @@ export default function GestionMembres() {
                           </Box>
                         </Box>
                       </TableCell>
-                      <TableCell>{u.sexe === 'M' ? 'Masculin' : u.sexe === 'F' ? 'Féminin' : '—'}</TableCell>
                       <TableCell><Chip label={u.role_display || u.role} size="small" sx={{ bgcolor: `${colors.or}30` }} /></TableCell>
-                      <TableCell>{u.telephone || '—'}</TableCell>
-                      <TableCell>{u.profession || '—'}</TableCell>
-                      <TableCell>{u.section_nom || '—'}</TableCell>
-                      <TableCell>{u.dahira_nom || '—'}</TableCell>
-                      <TableCell>{u.numero_carte || '—'}</TableCell>
-                      <TableCell>{u.numero_cni || '—'}</TableCell>
-                      <TableCell>{u.montant_cotisation ? `${u.montant_cotisation} FCFA` : '—'}</TableCell>
+                      <TableCell>
+                        <Typography variant="body2" noWrap>{u.section_nom || '—'}</Typography>
+                        <Typography variant="caption" color="text.secondary" noWrap>{u.dahira_nom || ''}</Typography>
+                      </TableCell>
                       <TableCell><Chip label={u.est_actif ? 'Actif' : 'Inactif'} color={u.est_actif ? 'success' : 'default'} size="small" /></TableCell>
-                      <TableCell align="right">
-                        <IconButton size="small" onClick={() => handleOpenEdit(u)} sx={{ color: colors.vert }}><Edit fontSize="small" /></IconButton>
-                        <IconButton size="small" onClick={() => setOpenDelete(u)} sx={{ color: 'error.main' }}><Delete fontSize="small" /></IconButton>
+                      <TableCell align="right" onClick={(e) => e.stopPropagation()}>
+                        <Tooltip title="Voir le détail">
+                          <IconButton size="small" onClick={() => navigate(`/admin/membres/${u.id}`)} sx={{ color: colors.vertFonce }}><ArrowForwardIos sx={{ fontSize: 14 }} /></IconButton>
+                        </Tooltip>
+                        {canManage && (
+                          <>
+                            <IconButton size="small" onClick={() => handleOpenEdit(u)} sx={{ color: colors.vert }}><Edit fontSize="small" /></IconButton>
+                            <IconButton size="small" onClick={() => setOpenDelete(u)} sx={{ color: 'error.main' }}><Delete fontSize="small" /></IconButton>
+                          </>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))
@@ -705,9 +754,11 @@ export default function GestionMembres() {
               <MenuItem value="M">Masculin</MenuItem>
               <MenuItem value="F">Féminin</MenuItem>
             </TextField>
-            <TextField select label="Rôle" value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))} fullWidth>
-              {ROLES.map((r) => <MenuItem key={r.value} value={r.value}>{r.label}</MenuItem>)}
-            </TextField>
+            {isSuperAdmin && (
+              <TextField select label="Rôle" value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))} fullWidth>
+                {ROLES.map((r) => <MenuItem key={r.value} value={r.value}>{r.label}</MenuItem>)}
+              </TextField>
+            )}
             <TextField label="Téléphone" value={form.telephone} onChange={(e) => setForm((f) => ({ ...f, telephone: e.target.value }))} fullWidth />
             <TextField
               select
@@ -752,6 +803,12 @@ export default function GestionMembres() {
               <MenuItem value="">Non renseigné</MenuItem>
               {GROUPES_SANGUINS.map((g) => <MenuItem key={g} value={g}>{g}</MenuItem>)}
             </TextField>
+            {!isSuperAdmin && (
+              <Alert severity="info">
+                Ce membre sera automatiquement rattaché à votre propre cellule.
+              </Alert>
+            )}
+            {isSuperAdmin && (
             <TextField
               select
               label="Regroupement"
@@ -762,6 +819,8 @@ export default function GestionMembres() {
               <MenuItem value="">Aucun</MenuItem>
               {regroupements.map((r) => <MenuItem key={r.id} value={r.id}>{r.nom || `Regroupement ${r.id}`}</MenuItem>)}
             </TextField>
+            )}
+            {isSuperAdmin && (
             <TextField
               select
               label="Section"
@@ -774,6 +833,8 @@ export default function GestionMembres() {
                 .filter((s) => !form.regroupement || String(s.regroupement) === String(form.regroupement))
                 .map((s) => <MenuItem key={s.id} value={s.id}>{s.nom || `Section ${s.id}`}</MenuItem>)}
             </TextField>
+            )}
+            {isSuperAdmin && (
             <TextField
               select
               label="Dahira"
@@ -790,6 +851,7 @@ export default function GestionMembres() {
                 })
                 .map((d) => <MenuItem key={d.id} value={d.id}>{d.nom || `Dahira ${d.id}`}</MenuItem>)}
             </TextField>
+            )}
           </Box>
         </DialogContent>
         <DialogActions>
@@ -810,6 +872,58 @@ export default function GestionMembres() {
         <DialogActions>
           <Button onClick={() => setOpenDelete(null)}>Annuler</Button>
           <Button variant="contained" color="error" onClick={handleDelete} disabled={saving}>{saving ? <CircularProgress size={24} /> : 'Supprimer'}</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={openImport} onClose={handleCloseImport} maxWidth="sm" fullWidth>
+        <DialogTitle>Importer des membres depuis Excel</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
+            Fichier .xlsx avec les colonnes PRENOM, NOM, SEXE, TELEPHONE, SECTION, DAHIRA, ANNEE
+            (naissance) et MONTANT (cotisation). L'ordre des colonnes n'a pas d'importance.
+            {!isSuperAdmin && ' Seules les lignes correspondant à votre propre cellule seront importées.'}
+            {' '}La Section et la Dahira doivent déjà exister dans Organisation — aucune nouvelle
+            cellule n'est créée automatiquement pendant la phase pilote.
+          </Typography>
+          <Button variant="outlined" component="label" startIcon={<UploadFile />}>
+            {importFile ? importFile.name : 'Choisir un fichier .xlsx'}
+            <input
+              type="file"
+              accept=".xlsx"
+              hidden
+              onChange={(e) => { setImportFile(e.target.files?.[0] || null); setImportResult(null) }}
+            />
+          </Button>
+          {importResult && (
+            <Alert severity={importResult.error ? 'error' : 'success'} sx={{ mt: 2 }}>
+              {importResult.error ? (
+                importResult.error
+              ) : (
+                <>
+                  {importResult.created} membre(s) créé(s), {importResult.already_existing} déjà existant(s).
+                  {importResult.errors_total > 0 && ` ${importResult.errors_total} ligne(s) ignorée(s).`}
+                  {importResult.errors?.length > 0 && (
+                    <Box component="ul" sx={{ mt: 1, mb: 0, pl: 2 }}>
+                      {importResult.errors.slice(0, 10).map((e, i) => (
+                        <li key={i}><Typography variant="caption">Ligne {e.ligne} : {e.raison}</Typography></li>
+                      ))}
+                    </Box>
+                  )}
+                </>
+              )}
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseImport}>Fermer</Button>
+          <Button
+            variant="contained"
+            onClick={handleImport}
+            disabled={!importFile || importing}
+            sx={{ bgcolor: colors.vert, '&:hover': { bgcolor: colors.vertFonce } }}
+          >
+            {importing ? <CircularProgress size={24} /> : 'Importer'}
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>

@@ -4,17 +4,19 @@ from django.contrib.auth.models import AbstractUser
 
 
 class CustomUser(AbstractUser):
+    # Matrice d'accès de la phase pilote (audit dahira) : chaque rôle scopé
+    # réutilise les FK d'organisation existantes (section/dahira) comme périmètre —
+    # voir apps.accounts.permissions.user_scope().
     ROLE_CHOICES = [
-        ('admin', 'Administrateur'),
+        ('admin', 'Super Admin (Programmeur / Auditeur / SAN)'),
+        ('national_lecture', 'Administrateur / SG National (lecture seule globale)'),
+        ('secretariat_national', 'Secrétariat National Administratif (lecture seule)'),
+        ('finance_national', 'Secrétariat aux Finances National (lecture seule)'),
+        ('section_lecture', 'Président / SG de Section (lecture seule)'),
+        ('cellule_admin', 'Secrétaire Administratif de Cellule (écriture membres)'),
+        ('cellule_finance', 'Secrétaire aux Finances de Cellule (écriture finance)'),
+        ('cellule_president', 'Président de Cellule (lecture seule)'),
         ('membre', 'Membre'),
-        ('jewrin', 'Jewrin'),
-        ('jewrine_conservatoire', 'Jewrin Conservatoire'),
-        ('jewrine_culturelle', 'Jewrin Culturelle'),
-        ('jewrine_finance', 'Jewrin Finance'),
-        ('jewrine_sociale', 'Jewrin Sociale'),
-        ('jewrine_communication', 'Jewrin Communication'),
-        ('jewrine_organisation', 'Jewrin Organisation'),
-        ('jewrine_scientifique', 'Jewrin Scientifique'),
     ]
 
     SEXE_CHOICES = [
@@ -61,7 +63,7 @@ class CustomUser(AbstractUser):
     # Assignation financière
     montant_cotisation = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('1000.00'), help_text='Montant de la cotisation mensuelle assignée à ce membre')
 
-    # Champs spécifiques Jewrin
+    # Champs spécifiques (rôles de gestion)
     specialite = models.CharField(max_length=100, blank=True)
     biographie = models.TextField(blank=True)
 

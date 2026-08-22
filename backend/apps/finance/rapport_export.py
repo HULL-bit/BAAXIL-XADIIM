@@ -10,7 +10,7 @@ from django.db.models import Count
 from .models import CotisationMensuelle
 
 
-def build_hierarchie_data(annee=None, mois=None):
+def build_hierarchie_data(annee=None, mois=None, only_pilote=False, only_section_id=None):
     """
     Synthèse Regroupement → Section → Sous-section → Dahira (montants, % payé,
     nb cotisations, nb membres). Utilisée à la fois par l'action stats_hierarchie
@@ -20,6 +20,9 @@ def build_hierarchie_data(annee=None, mois=None):
     vraies données (~25 dahiras), une boucle avec un .filter()/.count() par
     niveau ferait des dizaines de requêtes séquentielles, très lent en pratique
     sur ce réseau.
+
+    only_pilote : limite aux cellules (dahiras) marquées pilotes (phase pilote).
+    only_section_id : limite à une seule section (rôle Président/SG de Section).
     """
     from django.contrib.auth import get_user_model
     from apps.organisation.models import Regroupement, Section, SousSection, Dahira
@@ -31,6 +34,10 @@ def build_hierarchie_data(annee=None, mois=None):
         qs = qs.filter(annee=int(annee))
     if mois:
         qs = qs.filter(mois=int(mois))
+    if only_pilote:
+        qs = qs.filter(membre__dahira__est_pilote=True)
+    if only_section_id:
+        qs = qs.filter(membre__section_id=only_section_id)
 
     by_reg, by_sec, by_ss, by_dahira = {}, {}, {}, {}
     for c in qs:
@@ -49,9 +56,18 @@ def build_hierarchie_data(annee=None, mois=None):
     def pct(mt, mp):
         return round((mp / mt * 100), 2) if mt else 0
 
-    all_dahiras = list(Dahira.objects.all().order_by('nom'))
-    all_sous_sections = list(SousSection.objects.select_related('section').order_by('sexe'))
-    all_sections = list(Section.objects.all().order_by('nom'))
+    all_dahiras_qs = Dahira.objects.all().order_by('nom')
+    all_sous_sections_qs = SousSection.objects.select_related('section').order_by('sexe')
+    all_sections_qs = Section.objects.all().order_by('nom')
+    if only_pilote:
+        all_dahiras_qs = all_dahiras_qs.filter(est_pilote=True)
+    if only_section_id:
+        all_sous_sections_qs = all_sous_sections_qs.filter(section_id=only_section_id)
+        all_sections_qs = all_sections_qs.filter(id=only_section_id)
+        all_dahiras_qs = all_dahiras_qs.filter(sous_section__section_id=only_section_id)
+    all_dahiras = list(all_dahiras_qs)
+    all_sous_sections = list(all_sous_sections_qs)
+    all_sections = list(all_sections_qs)
 
     nb_membres_par_dahira = {
         row['dahira_id']: row['nb']
@@ -112,6 +128,8 @@ def build_hierarchie_data(annee=None, mois=None):
             for s in sections_par_regroupement.get(reg_id, [])
         ]
 
+    regroupement_ids_in_scope = {s.regroupement_id for s in all_sections} if (only_pilote or only_section_id) else None
+
     return [
         {
             'id': r.id,
@@ -124,6 +142,7 @@ def build_hierarchie_data(annee=None, mois=None):
             'sections': build_sections(r.id),
         }
         for r in Regroupement.objects.all().order_by('nom')
+        if regroupement_ids_in_scope is None or r.id in regroupement_ids_in_scope
     ]
 
 

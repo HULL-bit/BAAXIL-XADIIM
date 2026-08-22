@@ -75,12 +75,8 @@ export default function ProgrammeKamil() {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
   const { user } = useAuth()
-  const isJewrine =
-    !!user?.role &&
-    (user.role === 'jewrin' ||
-      user.role.toLowerCase().startsWith('jewrine_'))
   const canCreateProgramme = user?.role === 'admin'
-  const canAssignJukki = canCreateProgramme || isJewrine
+  const canAssignJukki = canCreateProgramme
   const [kamils, setKamils] = useState([])
   const [jukkisByKamil, setJukkisByKamil] = useState({})
   const [membres, setMembres] = useState([])

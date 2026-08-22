@@ -17,16 +17,99 @@ import {
   CircularProgress,
   Chip,
   Alert,
+  Card,
+  CardContent,
+  Grid,
 } from '@mui/material'
-import { ExpandMore, AccountTree, TrendingUp, Download, PictureAsPdf } from '@mui/icons-material'
+import { ExpandMore, AccountTree, TrendingUp, Download, PictureAsPdf, RequestQuote } from '@mui/icons-material'
 import api from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 
 const COLORS = { vert: '#2DA9E1', vertFonce: '#0F4D71' }
 
+function AssignationAnnuellePanel() {
+  const [sections, setSections] = useState([])
+  const [sectionId, setSectionId] = useState('')
+  const [annee, setAnnee] = useState(new Date().getFullYear())
+  const [montant, setMontant] = useState('')
+  const [objet, setObjet] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [result, setResult] = useState(null)
+
+  useEffect(() => {
+    api.get('organisation/sections/').then(({ data }) => setSections(data.results || data || [])).catch(() => setSections([]))
+  }, [])
+
+  const handleSubmit = async () => {
+    if (!sectionId || !montant || Number(montant) <= 0) {
+      setResult({ error: 'Section et montant (positif) requis.' })
+      return
+    }
+    setSaving(true)
+    setResult(null)
+    try {
+      const { data } = await api.post('/finance/cotisations/generer_assignation_annuelle/', {
+        section: sectionId, annee, montant_total: montant, objet,
+      })
+      setResult(data)
+    } catch (err) {
+      setResult({ error: err.response?.data?.detail || "Erreur lors de la création de l'assignation." })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Card sx={{ mb: 3, borderLeft: `4px solid ${COLORS.vert}`, borderRadius: 2 }}>
+      <CardContent>
+        <Typography variant="h6" sx={{ color: COLORS.vertFonce, mb: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <RequestQuote /> Assignation annuelle par section
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Fixe un montant total pour une section, réparti à parts égales entre les membres actifs
+          de ses cellules pilotes. Réservé au Super Admin (aucun rôle Section n'a l'écriture).
+        </Typography>
+        <Grid container spacing={2} alignItems="center">
+          <Grid item xs={12} sm={3}>
+            <TextField select size="small" label="Section" value={sectionId} onChange={(e) => setSectionId(e.target.value)} fullWidth>
+              <MenuItem value="">Choisir…</MenuItem>
+              {sections.map((s) => <MenuItem key={s.id} value={s.id}>{s.nom}</MenuItem>)}
+            </TextField>
+          </Grid>
+          <Grid item xs={6} sm={2}>
+            <TextField size="small" label="Année" type="number" value={annee} onChange={(e) => setAnnee(Number(e.target.value))} fullWidth />
+          </Grid>
+          <Grid item xs={6} sm={2}>
+            <TextField size="small" label="Montant total (FCFA)" type="number" value={montant} onChange={(e) => setMontant(e.target.value)} fullWidth />
+          </Grid>
+          <Grid item xs={12} sm={3}>
+            <TextField size="small" label="Objet (optionnel)" value={objet} onChange={(e) => setObjet(e.target.value)} fullWidth />
+          </Grid>
+          <Grid item xs={12} sm={2}>
+            <Button
+              fullWidth
+              variant="contained"
+              disabled={saving}
+              onClick={handleSubmit}
+              sx={{ bgcolor: COLORS.vert, '&:hover': { bgcolor: COLORS.vertFonce } }}
+            >
+              {saving ? <CircularProgress size={20} /> : 'Créer'}
+            </Button>
+          </Grid>
+        </Grid>
+        {result && (
+          <Alert severity={result.error ? 'error' : 'success'} sx={{ mt: 2 }}>
+            {result.error || `Assignation créée pour ${result.total_membres} membre(s) — ${result.montant_par_membre?.toLocaleString('fr-FR')} FCFA/membre (${result.created} créé(s), ${result.already_existing} déjà existant(s)).`}
+          </Alert>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 export default function FinanceHierarchie() {
-  const { user } = useAuth()
-  const isAdmin = user?.role === 'admin' || user?.role === 'jewrine_finance'
+  const { isSuperAdmin, permissions } = useAuth()
+  const canView = !!permissions?.can_view_national_synthese
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [annee, setAnnee] = useState(new Date().getFullYear())
@@ -56,7 +139,7 @@ export default function FinanceHierarchie() {
   }
 
   useEffect(() => {
-    if (!isAdmin) {
+    if (!canView) {
       setLoading(false)
       return
     }
@@ -67,12 +150,12 @@ export default function FinanceHierarchie() {
       .then(({ data: res }) => setData(res))
       .catch(() => setData(null))
       .finally(() => setLoading(false))
-  }, [isAdmin, annee, mois])
+  }, [canView, annee, mois])
 
-  if (!isAdmin) {
+  if (!canView) {
     return (
       <Box>
-        <Typography variant="h6" color="text.secondary">Accès réservé aux administrateurs et Jewrine Finance.</Typography>
+        <Typography variant="h6" color="text.secondary">Accès réservé aux rôles nationaux, de section et au Super Admin.</Typography>
       </Box>
     )
   }
@@ -137,25 +220,31 @@ export default function FinanceHierarchie() {
             <MenuItem key={m.value} value={m.value}>{m.label}</MenuItem>
           ))}
         </TextField>
-        <Button
-          variant="outlined"
-          startIcon={exportingFormat === 'excel' ? <CircularProgress size={16} /> : <Download />}
-          onClick={() => handleExport('excel')}
-          disabled={!!exportingFormat}
-        >
-          Export Excel
-        </Button>
-        <Button
-          variant="outlined"
-          startIcon={exportingFormat === 'pdf' ? <CircularProgress size={16} /> : <PictureAsPdf />}
-          onClick={() => handleExport('pdf')}
-          disabled={!!exportingFormat}
-        >
-          Export PDF
-        </Button>
+        {isSuperAdmin && (
+          <>
+            <Button
+              variant="outlined"
+              startIcon={exportingFormat === 'excel' ? <CircularProgress size={16} /> : <Download />}
+              onClick={() => handleExport('excel')}
+              disabled={!!exportingFormat}
+            >
+              Export Excel
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={exportingFormat === 'pdf' ? <CircularProgress size={16} /> : <PictureAsPdf />}
+              onClick={() => handleExport('pdf')}
+              disabled={!!exportingFormat}
+            >
+              Export PDF
+            </Button>
+          </>
+        )}
       </Box>
 
       {exportError && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setExportError('')}>{exportError}</Alert>}
+
+      {isSuperAdmin && <AssignationAnnuellePanel />}
 
       {globalSummary && (
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>

@@ -4,7 +4,15 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from django.db.models import Sum, Q, Count
 from decimal import Decimal
-from apps.accounts.permissions import IsAdminOrJewrinFinance, has_admin_access
+from apps.accounts.permissions import (
+    IsFinanceWriteAccess,
+    has_admin_access,
+    is_super_admin,
+    can_view_finance,
+    can_write_finance,
+    FINANCE_READ_ROLES,
+    scope_filter,
+)
 
 from .models import CotisationMensuelle, LeveeFonds, Transaction, Don, ParametresFinanciers
 from .serializers import CotisationMensuelleSerializer, LeveeFondsSerializer, TransactionSerializer, DonSerializer, ParametresFinanciersSerializer
@@ -19,9 +27,10 @@ class CotisationMensuelleViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         # Optimize queries with select_related and only necessary fields
         qs = CotisationMensuelle.objects.select_related('membre').order_by('-annee', '-mois')
-        if not has_admin_access(self.request.user, 'finance'):
-            qs = qs.filter(membre=self.request.user)
-        else:
+        user = self.request.user
+        role = getattr(user, 'role', None)
+        if is_super_admin(user) or role in FINANCE_READ_ROLES:
+            qs = scope_filter(qs, user, 'membre__dahira', 'membre__section')
             regroupement_id = self.request.query_params.get('regroupement')
             section_id = self.request.query_params.get('section')
             dahira_id = self.request.query_params.get('dahira')
@@ -31,15 +40,31 @@ class CotisationMensuelleViewSet(viewsets.ModelViewSet):
                 qs = qs.filter(membre__section_id=section_id)
             if dahira_id:
                 qs = qs.filter(membre__dahira_id=dahira_id)
+        else:
+            qs = qs.filter(membre=user)
         return qs
 
     def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminOrJewrinFinance()]
+        # Important : ce get_permissions() personnalisé prend le pas sur le
+        # permission_classes déclaré directement sur @action — toute action réservée
+        # à l'écriture finance doit donc être listée ici explicitement, sinon elle
+        # retombe silencieusement sur IsAuthenticated (accessible à un simple membre).
+        if self.action in ['create', 'update', 'partial_update', 'destroy', 'valider_paiements', 'generer']:
+            return [IsFinanceWriteAccess()]
+        if self.action == 'generer_assignation_annuelle':
+            # Réservé au Super Admin uniquement (aucun rôle Section n'a l'écriture
+            # dans la matrice pilote — décision produit validée) : IsFinanceWriteAccess
+            # laisserait passer un Secrétaire aux Finances de Cellule, trop permissif ici.
+            return [IsAdminUser()]
         return [IsAuthenticated()]
 
     def perform_create(self, serializer):
         """Create cotisation with validated data."""
+        from rest_framework.exceptions import PermissionDenied
+
+        membre = serializer.validated_data.get('membre')
+        if membre is not None and not can_write_finance(self.request.user, dahira_id=membre.dahira_id):
+            raise PermissionDenied("Vous ne pouvez enregistrer une cotisation que pour un membre de votre propre cellule.")
         # Ensure type_cotisation is set before saving
         if not serializer.validated_data.get('type_cotisation'):
             serializer.validated_data['type_cotisation'] = 'mensualite'
@@ -177,17 +202,28 @@ class CotisationMensuelleViewSet(viewsets.ModelViewSet):
     def stats_hierarchie(self, request):
         """
         Synthèse hiérarchique : Regroupement → Section → Sous-section → Dahira.
-        Pour chaque niveau : montant_total, montant_paye, pourcentage, nb_cotisations.
+        Réservée aux rôles nationaux/section (Super Admin, national_lecture,
+        finance_national, section_lecture) — un rôle de cellule voit déjà sa cellule
+        via /finance/cotisations/ et n'a pas besoin de la vue multi-niveaux.
         Filtres optionnels : ?annee=2026&mois=2
         """
-        if not has_admin_access(request.user, 'finance'):
+        from apps.accounts.permissions import user_scope
+
+        user = request.user
+        scope = user_scope(user)
+        role = getattr(user, 'role', None)
+        if scope['level'] not in ('all', 'national', 'section') or (
+            scope['level'] != 'all' and role not in FINANCE_READ_ROLES
+        ):
             return Response({'detail': 'Non autorisé'}, status=status.HTTP_403_FORBIDDEN)
 
         from .rapport_export import build_hierarchie_data
 
         annee = request.query_params.get('annee')
         mois = request.query_params.get('mois')
-        regroupements = build_hierarchie_data(annee, mois)
+        only_pilote = scope['level'] in ('national', 'section')
+        only_section_id = scope.get('section_id') if scope['level'] == 'section' else None
+        regroupements = build_hierarchie_data(annee, mois, only_pilote=only_pilote, only_section_id=only_section_id)
 
         return Response({
             'annee': int(annee) if annee else None,
@@ -210,11 +246,11 @@ class CotisationMensuelleViewSet(viewsets.ModelViewSet):
         cotisation.save(update_fields=['reference_wave', 'mode_paiement'])
         return Response(CotisationMensuelleSerializer(cotisation).data)
 
-    @action(detail=False, methods=['post'], permission_classes=[IsAdminOrJewrinFinance])
+    @action(detail=False, methods=['post'], permission_classes=[IsFinanceWriteAccess])
     def valider_paiements(self, request):
         """
         Valide en une fois plusieurs cotisations déclarées payées par les membres
-        (coche + bouton côté admin/jewrine finance). Body : {"ids": [1, 2, 3]}
+        (coche + bouton côté Secrétaire aux Finances de Cellule ou Super Admin). Body : {"ids": [1, 2, 3]}
         """
         from django.utils import timezone
 
@@ -222,11 +258,14 @@ class CotisationMensuelleViewSet(viewsets.ModelViewSet):
         if not isinstance(ids, list) or not ids:
             return Response({'detail': 'ids (liste) requis.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        qs = CotisationMensuelle.objects.filter(id__in=ids).exclude(statut='payee')
+        # Un Secrétaire aux Finances de Cellule ne peut valider que les cotisations
+        # de ses propres membres — on repart du queryset scopé (get_queryset), pas
+        # de CotisationMensuelle.objects.all(), pour ne jamais valider hors périmètre.
+        qs = self.get_queryset().filter(id__in=ids).exclude(statut='payee')
         updated = qs.update(statut='payee', date_paiement=timezone.now())
         return Response({'valides': updated})
 
-    @action(detail=False, methods=['post'], permission_classes=[IsAdminOrJewrinFinance])
+    @action(detail=False, methods=['post'], permission_classes=[IsFinanceWriteAccess])
     def generer(self, request):
         """
         Génère automatiquement les cotisations mensuelles de tous les membres actifs
@@ -286,6 +325,81 @@ class CotisationMensuelleViewSet(viewsets.ModelViewSet):
             'already_existing': already_existing,
         })
 
+    @action(detail=False, methods=['post'], permission_classes=[IsAdminUser])
+    def generer_assignation_annuelle(self, request):
+        """
+        Crée une assignation annuelle pour une Section, répartie à parts égales entre
+        les membres actifs des cellules pilotes de cette section (audit : "assignation
+        annuelle par section qui sera départagée sur les membres"). Réservé au Super
+        Admin — aucun rôle Section n'a l'écriture dans la matrice pilote.
+        Idempotent par (membre, annee, type_cotisation='assignation') — mois=0
+        représente une échéance annuelle (pas de mensualité associée).
+        Body : {"section": <id>, "annee": 2026, "montant_total": 500000, "objet": "..."}
+        """
+        from datetime import date
+
+        section_id = request.data.get('section')
+        objet = (request.data.get('objet') or '').strip()
+        try:
+            annee = int(request.data.get('annee'))
+            montant_total = Decimal(str(request.data.get('montant_total')))
+        except (TypeError, ValueError, ArithmeticError):
+            return Response({'detail': 'section, annee et montant_total (nombre) sont requis.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not section_id or montant_total <= 0:
+            return Response({'detail': 'section requis et montant_total doit être positif.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+
+        membres = list(
+            User.objects.filter(
+                is_active=True, est_actif=True,
+                section_id=section_id,
+                dahira__est_pilote=True,
+            ).order_by('id')
+        )
+        if not membres:
+            return Response({'detail': "Aucun membre actif dans une cellule pilote de cette section."}, status=status.HTTP_400_BAD_REQUEST)
+
+        nb = len(membres)
+        montant_base = (montant_total / nb).quantize(Decimal('0.01'))
+        # Reliquat d'arrondi affecté aux premiers membres pour que la somme distribuée
+        # corresponde exactement au montant_total voté.
+        reliquat = montant_total - (montant_base * nb)
+        centime = Decimal('0.01')
+
+        existing_membre_ids = set(
+            CotisationMensuelle.objects.filter(annee=annee, mois=0, type_cotisation='assignation', membre__in=membres)
+            .values_list('membre_id', flat=True)
+        )
+        date_echeance = date(annee, 12, 31)
+        to_create = []
+        for i, membre in enumerate(membres):
+            if membre.id in existing_membre_ids:
+                continue
+            montant = montant_base + (centime if reliquat > 0 and i < int(reliquat / centime) else Decimal('0.00'))
+            to_create.append(CotisationMensuelle(
+                membre=membre,
+                mois=0,
+                annee=annee,
+                type_cotisation='assignation',
+                objet_assignation=objet,
+                montant=montant,
+                date_echeance=date_echeance,
+                statut='en_attente',
+            ))
+        CotisationMensuelle.objects.bulk_create(to_create)
+
+        return Response({
+            'section': int(section_id),
+            'annee': annee,
+            'montant_total': float(montant_total),
+            'montant_par_membre': float(montant_base),
+            'total_membres': nb,
+            'created': len(to_create),
+            'already_existing': nb - len(to_create),
+        })
+
 
 class LeveeFondsViewSet(viewsets.ModelViewSet):
     queryset = LeveeFonds.objects.select_related('cree_par').filter(statut='active').order_by('-date_creation')
@@ -302,7 +416,7 @@ class LeveeFondsViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminOrJewrinFinance()]
+            return [IsFinanceWriteAccess()]
         return [IsAuthenticated()]
 
     def perform_create(self, serializer):
@@ -402,6 +516,45 @@ class LeveeFondsViewSet(viewsets.ModelViewSet):
         # Le save() de Transaction mettra à jour automatiquement montant_collecte
         
         return Response(TransactionSerializer(transaction).data, status=status.HTTP_200_OK)
+
+
+class DepenseHadiyaViewSet(viewsets.ModelViewSet):
+    """
+    Dépenses et Hadiya de cellule (audit : "enregistrement des cotisations, hadiya et
+    dépenses de sa propre cellule uniquement"). Réutilise le modèle Transaction —
+    `membre` porte ici le Secrétaire aux Finances qui enregistre l'opération (pas un
+    payeur), ce qui permet de scoper par sa cellule (`membre__dahira`) comme pour les
+    cotisations.
+    """
+    queryset = Transaction.objects.filter(type_transaction__in=['depense', 'hadiya']).order_by('-date_transaction')
+    serializer_class = TransactionSerializer
+    filterset_fields = ['type_transaction']
+
+    def get_queryset(self):
+        qs = Transaction.objects.filter(type_transaction__in=['depense', 'hadiya']).select_related('membre').order_by('-date_transaction')
+        user = self.request.user
+        role = getattr(user, 'role', None)
+        if is_super_admin(user) or role in FINANCE_READ_ROLES:
+            return scope_filter(qs, user, 'membre__dahira', 'membre__section')
+        return qs.none()
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsFinanceWriteAccess()]
+        return [IsAuthenticated()]
+
+    def perform_create(self, serializer):
+        import uuid
+        montant = serializer.validated_data.get('montant')
+        type_transaction = serializer.validated_data.get('type_transaction')
+        if type_transaction not in ('depense', 'hadiya'):
+            type_transaction = 'depense'
+        serializer.save(
+            membre=self.request.user,
+            type_transaction=type_transaction,
+            statut='validee',
+            reference_interne=f"{type_transaction.upper()}-{self.request.user.dahira_id or 0}-{uuid.uuid4().hex[:8].upper()}",
+        )
 
 
 class TransactionViewSet(viewsets.ReadOnlyModelViewSet):

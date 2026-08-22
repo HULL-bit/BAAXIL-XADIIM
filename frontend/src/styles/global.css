@@ -127,3 +127,25 @@ img {
     transition: none !important;
   }
 }
+
+/* Révélation "cinématique" au scroll (page d'accueil publique) : chaque section
+   part légèrement en retrait puis vient à sa place quand elle entre dans le
+   viewport (IntersectionObserver côté JS ajoute .reveal-in). */
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.reveal-in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}

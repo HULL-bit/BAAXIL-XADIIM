@@ -9,13 +9,13 @@ const Login = lazy(() => import('./components/auth/Login'))
 const Register = lazy(() => import('./components/auth/Register'))
 const DashboardAdmin = lazy(() => import('./components/dashboard/DashboardAdmin'))
 const DashboardMembre = lazy(() => import('./components/dashboard/DashboardMembre'))
-const DashboardJewrin = lazy(() => import('./components/dashboard/DashboardJewrin'))
 const Evenements = lazy(() => import('./components/informations/Evenements'))
 const News = lazy(() => import('./components/informations/News'))
 const FinanceParDahira = lazy(() => import('./components/finance/FinanceParDahira'))
 const FinanceHierarchie = lazy(() => import('./components/finance/FinanceHierarchie'))
 const LeveesFonds = lazy(() => import('./components/finance/LeveesFonds'))
 const Barkelou = lazy(() => import('./components/finance/Barkelou'))
+const DepensesHadiya = lazy(() => import('./components/finance/DepensesHadiya'))
 const ProgrammeKamil = lazy(() => import('./components/culturelle/ProgrammeKamil'))
 const MesProgressions = lazy(() => import('./components/culturelle/MesProgressions'))
 const ValidationsKamil = lazy(() => import('./components/culturelle/ValidationsKamil'))
@@ -31,32 +31,23 @@ const Bibliotheque = lazy(() => import('./components/bibliotheque/Bibliotheque')
 const Cours = lazy(() => import('./components/scientifique/Cours'))
 const MonProfil = lazy(() => import('./components/comptes/MonProfil'))
 const GestionMembres = lazy(() => import('./components/comptes/GestionMembres'))
+const MembreDetail = lazy(() => import('./components/comptes/MembreDetail'))
 
-const JEWRINE_ROLES = [
-  'jewrin',
-  'jewrine_conservatoire',
-  'jewrine_finance',
-  'jewrine_culturelle',
-  'jewrine_sociale',
-  'jewrine_communication',
-  'jewrine_organisation',
-]
-
-function ProtectedRoute({ children, roles }) {
-  const { user, loading } = useAuth()
+function ProtectedRoute({ children, roles, permission, requireGestionRole }) {
+  const { user, loading, permissions, isGestionRole } = useAuth()
   if (loading) return null
   if (!user) return <Navigate to="/login" replace />
   if (roles && !roles.includes(user.role)) return <Navigate to="/" replace />
+  if (permission && !permissions?.[permission]) return <Navigate to="/" replace />
+  if (requireGestionRole && !isGestionRole) return <Navigate to="/" replace />
   return children
 }
 
 function AppRoutes() {
-  const { user } = useAuth()
-  const isJewrine =
-    !!user?.role &&
-    (user.role === 'jewrin' ||
-      user.role.toLowerCase().startsWith('jewrine_'))
-  const defaultDashboard = user?.role === 'admin' ? '/admin' : isJewrine ? '/jewrin' : '/membre'
+  const { user, isGestionRole } = useAuth()
+  // Tout rôle de la matrice pilote (Super Admin + rôles nationaux/section/cellule)
+  // atterrit sur le tableau de bord scopé ; seul un simple membre va sur /membre.
+  const defaultDashboard = isGestionRole ? '/admin' : '/membre'
   return (
     <Routes>
       {/* Racine : par défaut on affiche l'accueil (ou redirection dashboard si connecté) */}
@@ -73,14 +64,14 @@ function AppRoutes() {
         }
       >
         <Route index element={<Navigate to={defaultDashboard} replace />} />
-        <Route path="admin" element={<ProtectedRoute roles={['admin']}><DashboardAdmin /></ProtectedRoute>} />
+        <Route path="admin" element={<ProtectedRoute requireGestionRole><DashboardAdmin /></ProtectedRoute>} />
         <Route path="membre" element={<ProtectedRoute roles={['membre']}><DashboardMembre /></ProtectedRoute>} />
-        <Route path="jewrin" element={<ProtectedRoute roles={JEWRINE_ROLES}><DashboardJewrin /></ProtectedRoute>} />
         <Route path="informations/evenements" element={<Evenements />} />
         <Route path="informations/news" element={<News />} />
         <Route path="finance/cotisations" element={<Navigate to="/finance/par-dahira" replace />} />
-        <Route path="finance/par-dahira" element={<ProtectedRoute roles={['admin', 'jewrine_finance']}><FinanceParDahira /></ProtectedRoute>} />
-        <Route path="finance/hierarchie" element={<ProtectedRoute roles={['admin', 'jewrine_finance']}><FinanceHierarchie /></ProtectedRoute>} />
+        <Route path="finance/par-dahira" element={<ProtectedRoute permission="can_view_finance"><FinanceParDahira /></ProtectedRoute>} />
+        <Route path="finance/hierarchie" element={<ProtectedRoute permission="can_view_national_synthese"><FinanceHierarchie /></ProtectedRoute>} />
+        <Route path="finance/depenses-hadiya" element={<ProtectedRoute permission="can_view_finance"><DepensesHadiya /></ProtectedRoute>} />
         <Route path="finance/levees-fonds" element={<LeveesFonds />} />
         <Route path="finance/barkelou" element={<Barkelou />} />
         <Route path="culturelle/kamil" element={<ProgrammeKamil />} />
@@ -97,7 +88,8 @@ function AppRoutes() {
         <Route path="bibliotheque" element={<Bibliotheque />} />
         <Route path="scientifique/cours" element={<Cours />} />
         <Route path="comptes/profil" element={<MonProfil />} />
-        <Route path="admin/membres" element={<ProtectedRoute roles={['admin']}><GestionMembres /></ProtectedRoute>} />
+        <Route path="admin/membres" element={<ProtectedRoute permission="can_view_members"><GestionMembres /></ProtectedRoute>} />
+        <Route path="admin/membres/:id" element={<ProtectedRoute permission="can_view_members"><MembreDetail /></ProtectedRoute>} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

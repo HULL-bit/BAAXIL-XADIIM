@@ -2,7 +2,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
-from apps.accounts.permissions import IsAdminOrJewrinSociale
+from apps.accounts.permissions import IsSuperAdminSociale
 
 from .models import ProjetEntraide, ActionSociale, Beneficiaire, AideAccordee, ContributionSociale
 from .serializers import (
@@ -80,7 +80,7 @@ class BeneficiaireViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminOrJewrinSociale()]
+            return [IsSuperAdminSociale()]
         return [IsAuthenticated()]
 
 
@@ -95,7 +95,7 @@ class AideAccordeeViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminOrJewrinSociale()]
+            return [IsSuperAdminSociale()]
         return [IsAuthenticated()]
 
 
@@ -107,5 +107,5 @@ class ContributionSocialeViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminOrJewrinSociale()]
+            return [IsSuperAdminSociale()]
         return [IsAuthenticated()]

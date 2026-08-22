@@ -3,7 +3,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
-from apps.accounts.permissions import IsAdminOrJewrinCommunication
+from apps.accounts.permissions import IsSuperAdminCommunication
 
 from .models import Message, CategorieForum, SujetForum, ReponseForum, Notification
 from .serializers import MessageSerializer, CategorieForumSerializer, SujetForumSerializer, ReponseForumSerializer, NotificationSerializer
@@ -392,7 +392,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminOrJewrinCommunication()]
+            return [IsSuperAdminCommunication()]
         return [IsAuthenticated()]
 
     def create(self, request, *args, **kwargs):

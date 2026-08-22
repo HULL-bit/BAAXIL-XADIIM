@@ -4,11 +4,11 @@ from django.http import HttpResponse
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, BasePermission
-from apps.accounts.permissions import IsAdminOrJewrinConservatoire, has_admin_access
+from apps.accounts.permissions import IsSuperAdminConservatoire, has_admin_access
 
 
 class IsAdminUserOrRole(BasePermission):
-    """Autorise is_staff OU role='admin' (CustomUser) OU jewrin conservatoire."""
+    """Autorise is_staff OU role='admin' (CustomUser) OU Super Admin (rubrique conservatoire, hors périmètre pilote)."""
     def has_permission(self, request, view):
         return has_admin_access(request.user, 'conservatoire')
 from rest_framework.response import Response
@@ -39,7 +39,7 @@ class DocumentNumeriqueViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminOrJewrinConservatoire()]
+            return [IsSuperAdminConservatoire()]
         return [IsAuthenticated()]
 
     def perform_create(self, serializer):
@@ -54,7 +54,7 @@ class MediaAudioViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminOrJewrinConservatoire()]
+            return [IsSuperAdminConservatoire()]
         return [IsAuthenticated()]
 
     def perform_create(self, serializer):
@@ -69,7 +69,7 @@ class MediaVideoViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminOrJewrinConservatoire()]
+            return [IsSuperAdminConservatoire()]
         return [IsAuthenticated()]
 
     def perform_create(self, serializer):
@@ -84,7 +84,7 @@ class ArchiveHistoriqueViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminOrJewrinConservatoire()]
+            return [IsSuperAdminConservatoire()]
         return [IsAuthenticated()]
 
     def perform_create(self, serializer):
@@ -104,7 +104,7 @@ class AlbumPhotoViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminOrJewrinConservatoire()]
+            return [IsSuperAdminConservatoire()]
         return [IsAuthenticated()]
 
     def perform_create(self, serializer):
@@ -119,7 +119,7 @@ class PhotoViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminOrJewrinConservatoire()]
+            return [IsSuperAdminConservatoire()]
         return [IsAuthenticated()]
 
     def perform_create(self, serializer):
@@ -134,7 +134,7 @@ class KourelViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminOrJewrinConservatoire()]
+            return [IsSuperAdminConservatoire()]
         return [IsAuthenticated()]
 
 
@@ -153,13 +153,13 @@ class SeanceConservatoireViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminOrJewrinConservatoire()]
+            return [IsSuperAdminConservatoire()]
         return [IsAuthenticated()]
 
     def perform_create(self, serializer):
         serializer.save(cree_par=self.request.user)
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAdminOrJewrinConservatoire()])
+    @action(detail=True, methods=['post'], permission_classes=[IsSuperAdminConservatoire()])
     def presences(self, request, pk=None):
         """
         Met à jour les présences des membres du kourel pour cette séance.
@@ -229,7 +229,7 @@ class SeanceConservatoireViewSet(viewsets.ModelViewSet):
         resp['Content-Disposition'] = f'attachment; filename="{filename}"'
         return resp
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAdminOrJewrinConservatoire()])
+    @action(detail=True, methods=['post'], permission_classes=[IsSuperAdminConservatoire()])
     def khassidas(self, request, pk=None):
         """
         Met à jour les khassidas répétées pour cette séance.
@@ -262,7 +262,7 @@ class PresenceSeanceViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminOrJewrinConservatoire()]
+            return [IsSuperAdminConservatoire()]
         return [IsAuthenticated()]
 
     @action(detail=False, methods=['get'])
