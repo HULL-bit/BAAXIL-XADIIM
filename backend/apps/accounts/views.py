@@ -26,7 +26,7 @@ from .permissions import (
     apply_role_preset,
     PERMISSION_FIELDS,
     CanViewMembers,
-    IsAdminRoleOrStaff,
+    CanViewLogs,
 )
 from .audit import log_connexion, log_action
 
@@ -74,7 +74,7 @@ def register(request):
     data = request.data
     requester = request.user
     if requester and requester.is_authenticated and not is_super_admin(requester):
-        if not has_perm(requester, 'membres_ajout', dahira_id=requester.dahira_id):
+        if not has_perm(requester, 'membres_ajout', dahira_id=requester.dahira_id, section_id=requester.section_id, regroupement_id=requester.regroupement_id):
             return Response({'detail': "Vous n'avez pas les droits pour créer un membre."}, status=status.HTTP_403_FORBIDDEN)
         data = data.copy()
         data['role'] = 'membre'
@@ -238,13 +238,14 @@ class UserDetail(generics.RetrieveUpdateDestroyAPIView):
         if instance.pk == user.pk:
             return instance
         method = self.request.method
+        scope_kwargs = dict(dahira_id=instance.dahira_id, section_id=instance.section_id, regroupement_id=instance.regroupement_id)
         if method == 'DELETE':
-            if not has_perm(user, 'membres_suppression', dahira_id=instance.dahira_id):
-                raise PermissionDenied("Vous ne pouvez supprimer que les membres de votre propre cellule.")
+            if not has_perm(user, 'membres_suppression', **scope_kwargs):
+                raise PermissionDenied("Vous ne pouvez supprimer que les membres de votre propre périmètre.")
         elif method in ('PUT', 'PATCH'):
-            if not has_perm(user, 'membres_modification', dahira_id=instance.dahira_id):
-                raise PermissionDenied("Vous ne pouvez modifier que les membres de votre propre cellule.")
-        elif not (is_super_admin(user) or can_view_members(user, dahira_id=instance.dahira_id, section_id=instance.section_id)):
+            if not has_perm(user, 'membres_modification', **scope_kwargs):
+                raise PermissionDenied("Vous ne pouvez modifier que les membres de votre propre périmètre.")
+        elif not (is_super_admin(user) or can_view_members(user, **scope_kwargs)):
             raise PermissionDenied("Ce membre n'est pas dans votre périmètre.")
         return instance
 
@@ -256,7 +257,7 @@ class UserDetail(generics.RetrieveUpdateDestroyAPIView):
         'role', 'regroupement', 'section', 'sous_section', 'dahira', 'is_staff', 'is_superuser',
         'niveau_acces', 'membres_lecture', 'membres_ajout', 'membres_modification', 'membres_suppression',
         'finance_lecture', 'finance_ajout', 'finance_modification', 'finance_suppression', 'finance_validation',
-        'synthese_nationale',
+        'synthese_nationale', 'logs_lecture',
     )
 
     def _safe_data(self, request, instance):
@@ -451,7 +452,7 @@ def import_membres_excel(request):
 
     user = request.user
     peut_ajouter_partout = is_super_admin(user)
-    if not peut_ajouter_partout and not has_perm(user, 'membres_ajout', dahira_id=user.dahira_id):
+    if not peut_ajouter_partout and not has_perm(user, 'membres_ajout', dahira_id=user.dahira_id, section_id=user.section_id, regroupement_id=user.regroupement_id):
         return Response({'detail': "Vous n'avez pas les droits pour importer des membres."}, status=status.HTTP_403_FORBIDDEN)
 
     uploaded = request.FILES.get('file')
@@ -588,7 +589,7 @@ class HistoriqueConnexionList(generics.ListAPIView):
     """
     queryset = HistoriqueConnexion.objects.select_related('user').all()
     serializer_class = HistoriqueConnexionSerializer
-    permission_classes = [IsAuthenticated, IsAdminRoleOrStaff]
+    permission_classes = [IsAuthenticated, CanViewLogs]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = {
         'user': ['exact'],
@@ -610,7 +611,7 @@ class JournalActionList(generics.ListAPIView):
     """
     queryset = JournalAction.objects.select_related('acteur').all()
     serializer_class = JournalActionSerializer
-    permission_classes = [IsAuthenticated, IsAdminRoleOrStaff]
+    permission_classes = [IsAuthenticated, CanViewLogs]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = {
         'acteur': ['exact'],

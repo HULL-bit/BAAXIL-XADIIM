@@ -63,7 +63,7 @@ class UserSerializer(serializers.ModelSerializer):
             'niveau_acces',
             'membres_lecture', 'membres_ajout', 'membres_modification', 'membres_suppression',
             'finance_lecture', 'finance_ajout', 'finance_modification', 'finance_suppression', 'finance_validation',
-            'synthese_nationale',
+            'synthese_nationale', 'logs_lecture',
         ]
         read_only_fields = ['date_inscription', 'cotisations_payees', 'chapitres_lus', 'evenements_participes', 'regroupement_nom', 'section_nom', 'sous_section_label', 'dahira_nom']
 

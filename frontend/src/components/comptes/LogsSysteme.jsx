@@ -43,10 +43,12 @@ export default function LogsSysteme() {
   const [journal, setJournal] = useState([])
   const [connexions, setConnexions] = useState([])
   const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState('')
 
   const loadJournal = useCallback(() => {
     setLoading(true)
-    const params = { page_size: 100, ordering: '-date_action' }
+    setLoadError('')
+    const params = { page_size: 100 }
     if (filters.search) params.search = filters.search
     if (filters.action) params.action = filters.action
     if (filters.ip) params.adresse_ip__icontains = filters.ip
@@ -54,12 +56,16 @@ export default function LogsSysteme() {
     if (filters.date_max) params.date_action__lte = filters.date_max
     api.get('/auth/journal/', { params })
       .then(({ data }) => setJournal(data.results || data || []))
-      .catch(() => setJournal([]))
+      .catch((err) => {
+        setJournal([])
+        setLoadError(err.response?.data?.detail || `Erreur ${err.response?.status || ''} lors du chargement du journal des actions.`)
+      })
       .finally(() => setLoading(false))
   }, [filters])
 
   const loadConnexions = useCallback(() => {
     setLoading(true)
+    setLoadError('')
     const params = { page_size: 100 }
     if (filters.search) params.search = filters.search
     if (filters.ip) params.adresse_ip__icontains = filters.ip
@@ -68,7 +74,10 @@ export default function LogsSysteme() {
     if (filters.succes) params.succes = filters.succes
     api.get('/auth/connexions/', { params })
       .then(({ data }) => setConnexions(data.results || data || []))
-      .catch(() => setConnexions([]))
+      .catch((err) => {
+        setConnexions([])
+        setLoadError(err.response?.data?.detail || `Erreur ${err.response?.status || ''} lors du chargement de l'historique des connexions.`)
+      })
       .finally(() => setLoading(false))
   }, [filters])
 

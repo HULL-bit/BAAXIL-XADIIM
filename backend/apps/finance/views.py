@@ -64,8 +64,11 @@ class CotisationMensuelleViewSet(viewsets.ModelViewSet):
         from rest_framework.exceptions import PermissionDenied
 
         membre = serializer.validated_data.get('membre')
-        if membre is not None and not has_perm(self.request.user, 'finance_ajout', dahira_id=membre.dahira_id):
-            raise PermissionDenied("Vous ne pouvez enregistrer une cotisation que pour un membre de votre propre cellule.")
+        if membre is not None and not has_perm(
+            self.request.user, 'finance_ajout',
+            dahira_id=membre.dahira_id, section_id=membre.section_id, regroupement_id=membre.regroupement_id,
+        ):
+            raise PermissionDenied("Vous ne pouvez enregistrer une cotisation que pour un membre de votre propre périmètre.")
         # Ensure type_cotisation is set before saving
         if not serializer.validated_data.get('type_cotisation'):
             serializer.validated_data['type_cotisation'] = 'mensualite'
@@ -79,8 +82,12 @@ class CotisationMensuelleViewSet(viewsets.ModelViewSet):
         from rest_framework.exceptions import PermissionDenied
 
         instance_avant = serializer.instance
-        if not has_perm(self.request.user, 'finance_modification', dahira_id=instance_avant.membre.dahira_id):
-            raise PermissionDenied("Vous ne pouvez modifier que les cotisations de votre propre cellule.")
+        if not has_perm(
+            self.request.user, 'finance_modification',
+            dahira_id=instance_avant.membre.dahira_id, section_id=instance_avant.membre.section_id,
+            regroupement_id=instance_avant.membre.regroupement_id,
+        ):
+            raise PermissionDenied("Vous ne pouvez modifier que les cotisations de votre propre périmètre.")
         instance = serializer.save()
         if instance.statut == 'payee' and not instance.date_paiement:
             from django.utils import timezone
@@ -95,8 +102,12 @@ class CotisationMensuelleViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         from rest_framework.exceptions import PermissionDenied
 
-        if not has_perm(self.request.user, 'finance_suppression', dahira_id=instance.membre.dahira_id):
-            raise PermissionDenied("Vous ne pouvez supprimer que les cotisations de votre propre cellule.")
+        if not has_perm(
+            self.request.user, 'finance_suppression',
+            dahira_id=instance.membre.dahira_id, section_id=instance.membre.section_id,
+            regroupement_id=instance.membre.regroupement_id,
+        ):
+            raise PermissionDenied("Vous ne pouvez supprimer que les cotisations de votre propre périmètre.")
         instance.delete()
 
     @action(detail=False, methods=['get'])

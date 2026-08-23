@@ -86,15 +86,16 @@ function ActionDots({ code }) {
 }
 
 const emptyPerms = {
-  niveau_acces: '',
+  niveau_acces: '', regroupement: '',
   membres_lecture: false, membres_ajout: false, membres_modification: false, membres_suppression: false,
   finance_lecture: false, finance_ajout: false, finance_modification: false, finance_suppression: false, finance_validation: false,
-  synthese_nationale: false,
+  synthese_nationale: false, logs_lecture: false,
 }
 
 export default function GestionRoles() {
   const [comptes, setComptes] = useState([])
   const [loading, setLoading] = useState(true)
+  const [regroupements, setRegroupements] = useState([])
   const [sections, setSections] = useState([])
   const [dahiras, setDahiras] = useState([])
   const [sousSections, setSousSections] = useState([])
@@ -126,10 +127,12 @@ export default function GestionRoles() {
 
   useEffect(() => {
     Promise.all([
+      api.get('organisation/regroupements/').then(({ data }) => data.results || data || []),
       api.get('organisation/sections/').then(({ data }) => data.results || data || []),
       api.get('organisation/dahiras/').then(({ data }) => data.results || data || []),
       api.get('organisation/sous-sections/').then(({ data }) => data.results || data || []),
-    ]).then(([s, d, ss]) => {
+    ]).then(([r, s, d, ss]) => {
+      setRegroupements(Array.isArray(r) ? r : [])
       setSections(Array.isArray(s) ? s : [])
       setDahiras(Array.isArray(d) ? d : [])
       setSousSections(Array.isArray(ss) ? ss : [])
@@ -210,6 +213,7 @@ export default function GestionRoles() {
     setCustomizeTarget(compte)
     setCustomizeForm({
       niveau_acces: compte.niveau_acces || '',
+      regroupement: (typeof compte.regroupement === 'object' ? compte.regroupement?.id : compte.regroupement) || '',
       membres_lecture: !!compte.membres_lecture,
       membres_ajout: !!compte.membres_ajout,
       membres_modification: !!compte.membres_modification,
@@ -220,6 +224,7 @@ export default function GestionRoles() {
       finance_suppression: !!compte.finance_suppression,
       finance_validation: !!compte.finance_validation,
       synthese_nationale: !!compte.synthese_nationale,
+      logs_lecture: !!compte.logs_lecture,
     })
   }
 
@@ -233,7 +238,7 @@ export default function GestionRoles() {
     setCustomizeSaving(true)
     setMessage({ type: '', text: '' })
     try {
-      await api.patch(`/auth/users/${customizeTarget.id}/`, customizeForm)
+      await api.patch(`/auth/users/${customizeTarget.id}/`, { ...customizeForm, regroupement: customizeForm.regroupement || null })
       setMessage({ type: 'success', text: `Droits personnalisés enregistrés pour ${customizeTarget.first_name || customizeTarget.username}.` })
       closeCustomize()
       loadComptes()
@@ -481,15 +486,31 @@ export default function GestionRoles() {
             size="small"
             label="Périmètre (niveau)"
             value={customizeForm.niveau_acces}
-            onChange={(e) => setCustomizeForm((f) => ({ ...f, niveau_acces: e.target.value }))}
+            onChange={(e) => setCustomizeForm((f) => ({ ...f, niveau_acces: e.target.value, regroupement: e.target.value === 'regroupement' ? f.regroupement : '' }))}
             fullWidth
-            sx={{ mb: 2 }}
+            sx={{ mb: customizeForm.niveau_acces === 'regroupement' ? 2 : 2 }}
           >
             <MenuItem value="">Aucun</MenuItem>
             <MenuItem value="national">National (cellules pilotes)</MenuItem>
+            <MenuItem value="regroupement">Regroupement (son propre regroupement)</MenuItem>
             <MenuItem value="section">Section (sa propre section)</MenuItem>
             <MenuItem value="cellule">Cellule (sa propre cellule)</MenuItem>
           </TextField>
+
+          {customizeForm.niveau_acces === 'regroupement' && (
+            <TextField
+              select
+              size="small"
+              label="Regroupement"
+              value={customizeForm.regroupement}
+              onChange={(e) => setCustomizeForm((f) => ({ ...f, regroupement: e.target.value }))}
+              fullWidth
+              sx={{ mb: 2 }}
+            >
+              <MenuItem value="">Choisir…</MenuItem>
+              {regroupements.map((r) => <MenuItem key={r.id} value={r.id}>{r.nom}</MenuItem>)}
+            </TextField>
+          )}
 
           <Typography variant="subtitle2" sx={{ color: colors.vertFonce, mb: 1 }}>Membres</Typography>
           <FormGroup row sx={{ mb: 2 }}>
@@ -520,6 +541,11 @@ export default function GestionRoles() {
           <FormControlLabel
             control={<Checkbox size="small" checked={customizeForm.synthese_nationale} onChange={(e) => setCustomizeForm((f) => ({ ...f, synthese_nationale: e.target.checked }))} />}
             label="Synthèse hiérarchique nationale"
+          />
+          <FormControlLabel
+            sx={{ display: 'block' }}
+            control={<Checkbox size="small" checked={customizeForm.logs_lecture} onChange={(e) => setCustomizeForm((f) => ({ ...f, logs_lecture: e.target.checked }))} />}
+            label="Logs système (connexions + journal des actions)"
           />
         </DialogContent>
         <DialogActions>

@@ -91,7 +91,7 @@ function AppRoutes() {
         <Route path="admin/membres" element={<ProtectedRoute permission="can_view_members"><GestionMembres /></ProtectedRoute>} />
         <Route path="admin/membres/:id" element={<ProtectedRoute permission="can_view_members"><MembreDetail /></ProtectedRoute>} />
         <Route path="admin/roles" element={<ProtectedRoute roles={['admin']}><GestionRoles /></ProtectedRoute>} />
-        <Route path="admin/logs" element={<ProtectedRoute roles={['admin']}><LogsSysteme /></ProtectedRoute>} />
+        <Route path="admin/logs" element={<ProtectedRoute permission="can_view_logs"><LogsSysteme /></ProtectedRoute>} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

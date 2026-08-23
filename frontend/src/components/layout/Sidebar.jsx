@@ -68,14 +68,14 @@ function buildSectionsGestion(permissions, isSuperAdmin) {
     },
   ]
 
-  if (permissions.can_view_members || isSuperAdmin) {
+  if (permissions.can_view_members || permissions.can_view_logs || isSuperAdmin) {
     const items = []
     if (permissions.can_view_members) items.push({ label: 'Gestion des membres', path: '/admin/membres', icon: <PeopleIcon /> })
     if (isSuperAdmin) {
       items.push({ label: 'Rôles & Permissions', path: '/admin/roles', icon: <RolesIcon /> })
       items.push({ label: 'Admin organisation', path: '/organisation/admin', icon: <OrgIcon /> })
-      items.push({ label: 'Logs système', path: '/admin/logs', icon: <LogsIcon /> })
     }
+    if (permissions.can_view_logs) items.push({ label: 'Logs système', path: '/admin/logs', icon: <LogsIcon /> })
     sections.push({ title: 'Projet gestion membres', items })
   }
 
