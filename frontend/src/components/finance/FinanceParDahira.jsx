@@ -57,7 +57,11 @@ const StatCard = ({ title, value, icon, color }) => (
 export default function FinanceParDahira() {
   const { permissions, isSuperAdmin } = useAuth()
   const canView = !!permissions?.can_view_finance
-  const canManage = !!permissions?.can_manage_finance
+  // Une permission par action précise (pas un agrégat "can_manage_finance") pour que
+  // chaque bouton reflète exactement le droit requis côté backend (matrice L/A/M/S/V).
+  const canValidate = !!permissions?.finance_validation
+  const canEdit = !!permissions?.finance_modification
+  const canAdd = !!permissions?.finance_ajout
   const canViewMembers = !!permissions?.can_view_members
   const [regroupements, setRegroupements] = useState([])
   const [sections, setSections] = useState([])
@@ -224,7 +228,7 @@ export default function FinanceParDahira() {
       .finally(() => setLoading(false))
 
     api
-      .get('/finance/cotisations/statistiques/', { params })
+      .get('/finance/cotisations/statistiques/', { params: cotisationParams })
       .then(({ data }) => setStats(data))
       .catch(() => setStats(null))
   }, [selectedRegroupementId, selectedSectionId, selectedDahiraId, filterMois, filterAnnee, filterStatut, filterType, canView])
@@ -263,6 +267,10 @@ export default function FinanceParDahira() {
     if (selectedDahiraId) statsParams.dahira = selectedDahiraId
     else if (selectedSectionId) statsParams.section = selectedSectionId
     else if (selectedRegroupementId) statsParams.regroupement = selectedRegroupementId
+    if (filterMois) statsParams.mois = filterMois
+    if (filterAnnee) statsParams.annee = filterAnnee
+    if (filterStatut) statsParams.statut = filterStatut
+    if (filterType) statsParams.type_cotisation = filterType
     api.get('/finance/cotisations/statistiques/', { params: statsParams }).then(({ data: s }) => setStats(s)).catch(() => {})
     api.get('/finance/cotisations/statistiques/').then(({ data: g }) => setGlobalStats(g)).catch(() => {})
   }
@@ -830,7 +838,7 @@ export default function FinanceParDahira() {
           <MenuItem value="retard">En retard</MenuItem>
           <MenuItem value="annulee">Annulée</MenuItem>
         </TextField>
-        {canManage && (
+        {canAdd && (
           <Button
             variant="contained"
             startIcon={<Add />}
@@ -859,7 +867,7 @@ export default function FinanceParDahira() {
             <Typography variant="h6" sx={{ color: COLORS.vertFonce }}>
               Cotisations {selectedDahiraId ? 'de ce dahira' : selectedSectionId ? 'de cette section' : 'de ce regroupement'}
             </Typography>
-            {canManage && (
+            {canValidate && (
               <Button
                 variant="contained"
                 color="success"
@@ -876,7 +884,7 @@ export default function FinanceParDahira() {
             <Table size="small">
               <TableHead>
                 <TableRow sx={{ bgcolor: `${COLORS.vert}15` }}>
-                  {canManage && (
+                  {canValidate && (
                     <TableCell padding="checkbox">
                       <Checkbox
                         size="small"
@@ -893,16 +901,16 @@ export default function FinanceParDahira() {
                   <TableCell>Montant</TableCell>
                   <TableCell>Référence Wave</TableCell>
                   <TableCell>Statut</TableCell>
-                  {canManage && <TableCell align="right">Actions</TableCell>}
+                  {canEdit && <TableCell align="right">Actions</TableCell>}
                 </TableRow>
               </TableHead>
               <TableBody>
                 {cotisations.length === 0 ? (
-                  <TableRow><TableCell colSpan={8} align="center">Aucune cotisation</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={6 + (canValidate ? 1 : 0) + (canEdit ? 1 : 0)} align="center">Aucune cotisation</TableCell></TableRow>
                 ) : (
                   cotisations.map((c) => (
                     <TableRow key={c.id} hover selected={!!selectedCotisationIds[c.id]}>
-                      {canManage && (
+                      {canValidate && (
                         <TableCell padding="checkbox">
                           <Checkbox
                             size="small"
@@ -918,7 +926,7 @@ export default function FinanceParDahira() {
                       <TableCell>{Number(c.montant).toLocaleString('fr-FR')} FCFA</TableCell>
                       <TableCell>{c.reference_wave || '—'}</TableCell>
                       <TableCell><StatutCotisationChip statut={c.statut} /></TableCell>
-                      {canManage && (
+                      {canEdit && (
                         <TableCell align="right">
                           <IconButton size="small" onClick={() => handleOpenEditCotisation(c)} sx={{ color: COLORS.vert }} title="Modifier">
                             <Edit fontSize="small" />

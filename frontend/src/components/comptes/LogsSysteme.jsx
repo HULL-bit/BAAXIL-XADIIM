@@ -18,6 +18,7 @@ import {
   Tabs,
   Tab,
   CircularProgress,
+  Alert,
 } from '@mui/material'
 import { History, Security, RestartAlt } from '@mui/icons-material'
 import api from '../../services/api'
@@ -153,6 +154,10 @@ export default function LogsSysteme() {
           </Box>
         </CardContent>
       </Card>
+
+      {loadError && (
+        <Alert severity="error" sx={{ mb: 3 }}>{loadError}</Alert>
+      )}
 
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress /></Box>

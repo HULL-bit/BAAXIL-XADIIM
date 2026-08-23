@@ -121,7 +121,11 @@ export default function GestionMembres() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const { isSuperAdmin, permissions } = useAuth()
-  const canManage = !!permissions?.can_manage_members
+  // Une permission par action précise (pas un agrégat) pour que chaque bouton
+  // reflète exactement le droit requis côté backend (matrice L/A/M/S/V).
+  const canAddMember = !!permissions?.membres_ajout
+  const canEditMember = !!permissions?.membres_modification
+  const canDeleteMember = !!permissions?.membres_suppression
   const [list, setList] = useState([])
   const [count, setCount] = useState(0)
   const [page, setPage] = useState(() => Number(searchParams.get('page')) || 1)
@@ -483,12 +487,12 @@ export default function GestionMembres() {
             >
               Export PDF
             </Button>
-            {canManage && (
+            {canAddMember && (
               <Button variant="outlined" startIcon={<UploadFile />} onClick={() => setOpenImport(true)}>
                 Importer Excel
               </Button>
             )}
-            {canManage && (
+            {canAddMember && (
               <Button
                 variant="contained"
                 startIcon={<Add />}
@@ -680,11 +684,11 @@ export default function GestionMembres() {
                         <Tooltip title="Voir le détail">
                           <IconButton size="small" onClick={() => navigate(`/admin/membres/${u.id}`)} sx={{ color: colors.vertFonce }}><ArrowForwardIos sx={{ fontSize: 14 }} /></IconButton>
                         </Tooltip>
-                        {canManage && (
-                          <>
-                            <IconButton size="small" onClick={() => handleOpenEdit(u)} sx={{ color: colors.vert }}><Edit fontSize="small" /></IconButton>
-                            <IconButton size="small" onClick={() => setOpenDelete(u)} sx={{ color: 'error.main' }}><Delete fontSize="small" /></IconButton>
-                          </>
+                        {canEditMember && (
+                          <IconButton size="small" onClick={() => handleOpenEdit(u)} sx={{ color: colors.vert }}><Edit fontSize="small" /></IconButton>
+                        )}
+                        {canDeleteMember && (
+                          <IconButton size="small" onClick={() => setOpenDelete(u)} sx={{ color: 'error.main' }}><Delete fontSize="small" /></IconButton>
                         )}
                       </TableCell>
                     </TableRow>

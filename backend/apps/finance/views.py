@@ -129,6 +129,8 @@ class CotisationMensuelleViewSet(viewsets.ModelViewSet):
         sous_section_id = request.query_params.get('sous_section')
         section_id = request.query_params.get('section')
         regroupement_id = request.query_params.get('regroupement')
+        statut = request.query_params.get('statut')
+        type_cotisation = request.query_params.get('type_cotisation')
 
         if annee:
             qs = qs.filter(annee=annee)
@@ -147,6 +149,12 @@ class CotisationMensuelleViewSet(viewsets.ModelViewSet):
             qs = qs.filter(membre__section_id=section_id)
         if regroupement_id:
             qs = qs.filter(membre__regroupement_id=regroupement_id)
+        # Alignés sur les mêmes filtres que la liste des cotisations, pour que les
+        # cartes de statistiques reflètent exactement ce que montre le tableau.
+        if statut:
+            qs = qs.filter(statut=statut)
+        if type_cotisation:
+            qs = qs.filter(type_cotisation=type_cotisation)
 
         total_assignations = qs.count()
 
