@@ -84,7 +84,6 @@ function buildSectionsGestion(permissions, isSuperAdmin) {
   const financeItems = [{ label: 'Barkelou (cotisations)', path: '/finance/barkelou', icon: <FinanceIcon /> }]
   if (permissions.can_view_finance) {
     financeItems.push({ label: 'Finance par Dahira', path: '/finance/par-dahira', icon: <FinanceIcon /> })
-    financeItems.push({ label: 'Dépenses & Hadiya', path: '/finance/depenses-hadiya', icon: <FinanceIcon /> })
   }
   if (permissions.can_view_national_synthese) {
     financeItems.push({ label: 'Synthèse hiérarchique', path: '/finance/hierarchie', icon: <FinanceIcon /> })

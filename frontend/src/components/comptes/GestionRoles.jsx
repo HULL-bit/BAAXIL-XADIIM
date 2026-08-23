@@ -20,34 +20,76 @@ import {
   CircularProgress,
   Alert,
   Tooltip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  FormGroup,
+  FormControlLabel,
+  Checkbox,
+  Divider,
 } from '@mui/material'
-import { AdminPanelSettings, Search, PersonAdd, RestartAlt, Info } from '@mui/icons-material'
+import { AdminPanelSettings, Search, PersonAdd, RestartAlt, Info, Tune } from '@mui/icons-material'
 import api from '../../services/api'
 import { colors } from '../../styles/theme'
 
-// Matrice de la phase pilote (audit dahira) — description humaine pour la formation
-// des admins de la plateforme. Le backend (apps.accounts.permissions) reste la seule
-// source de vérité pour l'application réelle des droits.
+// Matrice de la phase pilote (audit dahira) — préréglages "par rôle" : les choisir
+// pré-remplit les droits individuels (hérités par tout le monde ayant ce rôle), qui
+// restent ensuite ajustables pour UNE personne précise (bouton "Personnaliser").
 const MATRICE = [
-  { niveau: 'National', role: 'Administrateur / SG National', value: 'national_lecture', perimetre: 'Cellules pilotes (toutes)', membres: 'Lecture', finance: 'Lecture' },
-  { niveau: 'National', role: 'Secrétariat National Administratif', value: 'secretariat_national', perimetre: 'Cellules pilotes (toutes)', membres: 'Lecture', finance: '—' },
-  { niveau: 'National', role: 'Secrétariat aux Finances National', value: 'finance_national', perimetre: 'Cellules pilotes (toutes)', membres: '—', finance: 'Lecture' },
-  { niveau: 'Section', role: 'Président / SG de Section', value: 'section_lecture', perimetre: 'Cellules pilotes de sa section', membres: 'Lecture', finance: 'Lecture' },
-  { niveau: 'Cellule', role: 'Secrétaire Administratif de Cellule', value: 'cellule_admin', perimetre: 'Sa cellule uniquement', membres: 'Écriture', finance: '—' },
-  { niveau: 'Cellule', role: 'Secrétaire aux Finances de Cellule', value: 'cellule_finance', perimetre: 'Sa cellule uniquement', membres: 'Lecture', finance: 'Écriture' },
-  { niveau: 'Cellule', role: 'Président de Cellule', value: 'cellule_president', perimetre: 'Sa cellule uniquement', membres: 'Lecture', finance: 'Lecture' },
-  { niveau: '—', role: 'Membre', value: 'membre', perimetre: 'Son propre profil', membres: '—', finance: '—' },
-  { niveau: 'Total', role: 'Super Admin (Programmeur / Auditeur / SAN)', value: 'admin', perimetre: 'Tout le Sénégal', membres: 'Écriture', finance: 'Écriture' },
+  { niveau: 'National', role: 'Administrateur / SG National', value: 'national_lecture', perimetre: 'Cellules pilotes (toutes)', membres: 'L', finance: 'L' },
+  { niveau: 'National', role: 'Secrétariat National Administratif', value: 'secretariat_national', perimetre: 'Cellules pilotes (toutes)', membres: 'L', finance: '' },
+  { niveau: 'National', role: 'Secrétariat aux Finances National', value: 'finance_national', perimetre: 'Cellules pilotes (toutes)', membres: '', finance: 'L' },
+  { niveau: 'Section', role: 'Président / SG de Section', value: 'section_lecture', perimetre: 'Cellules pilotes de sa section', membres: 'L', finance: 'L' },
+  { niveau: 'Cellule', role: 'Secrétaire Administratif de Cellule', value: 'cellule_admin', perimetre: 'Sa cellule uniquement', membres: 'LAMS', finance: '' },
+  { niveau: 'Cellule', role: 'Secrétaire aux Finances de Cellule', value: 'cellule_finance', perimetre: 'Sa cellule uniquement', membres: 'L', finance: 'LAMSV' },
+  { niveau: 'Cellule', role: 'Président de Cellule', value: 'cellule_president', perimetre: 'Sa cellule uniquement', membres: 'L', finance: 'L' },
+  { niveau: '—', role: 'Membre', value: 'membre', perimetre: 'Son propre profil', membres: '', finance: '' },
+  { niveau: 'Total', role: 'Super Admin (Programmeur / Auditeur / SAN)', value: 'admin', perimetre: 'Tout le Sénégal', membres: 'LAMS', finance: 'LAMSV' },
 ]
 
 const GESTION_ROLES = MATRICE.filter((r) => r.value !== 'membre').map((r) => r.value)
 const SCOPED_SECTION_ROLES = ['section_lecture']
 const SCOPED_CELLULE_ROLES = ['cellule_admin', 'cellule_finance', 'cellule_president']
 
-function droitChip(label) {
-  if (label === '—') return <Chip label="Aucun" size="small" variant="outlined" />
-  if (label === 'Écriture') return <Chip label="Écriture" size="small" color="success" />
-  return <Chip label="Lecture" size="small" color="info" />
+// Champs individuels éditables via "Personnaliser" — groupés par domaine, chacun
+// avec son action (Lecture / Ajout / Modification / Suppression / Validation).
+const CHAMPS_MEMBRES = [
+  { field: 'membres_lecture', label: 'Lecture' },
+  { field: 'membres_ajout', label: 'Ajout' },
+  { field: 'membres_modification', label: 'Modification' },
+  { field: 'membres_suppression', label: 'Suppression' },
+]
+const CHAMPS_FINANCE = [
+  { field: 'finance_lecture', label: 'Lecture' },
+  { field: 'finance_ajout', label: 'Ajout' },
+  { field: 'finance_modification', label: 'Modification' },
+  { field: 'finance_suppression', label: 'Suppression' },
+  { field: 'finance_validation', label: 'Validation' },
+]
+const ACTION_LETTER = { L: 'Lecture', A: 'Ajout', M: 'Modification', S: 'Suppression', V: 'Validation' };
+
+function ActionDots({ code }) {
+  return (
+    <Box sx={{ display: 'flex', gap: 0.5 }}>
+      {['L', 'A', 'M', 'S', 'V'].map((letter) => (
+        code.includes(letter) ? (
+          <Tooltip key={letter} title={ACTION_LETTER[letter]}>
+            <Chip label={letter} size="small" color={letter === 'V' ? 'warning' : 'success'} sx={{ width: 26, height: 22, fontSize: 11, fontWeight: 700 }} />
+          </Tooltip>
+        ) : (
+          <Chip key={letter} label={letter} size="small" variant="outlined" sx={{ width: 26, height: 22, fontSize: 11, color: 'text.disabled', borderColor: 'divider' }} />
+        )
+      ))}
+    </Box>
+  )
+}
+
+const emptyPerms = {
+  niveau_acces: '',
+  membres_lecture: false, membres_ajout: false, membres_modification: false, membres_suppression: false,
+  finance_lecture: false, finance_ajout: false, finance_modification: false, finance_suppression: false, finance_validation: false,
+  synthese_nationale: false,
 }
 
 export default function GestionRoles() {
@@ -67,6 +109,10 @@ export default function GestionRoles() {
   const [assignSection, setAssignSection] = useState('')
   const [assignDahira, setAssignDahira] = useState('')
   const [assigning, setAssigning] = useState(false)
+
+  const [customizeTarget, setCustomizeTarget] = useState(null)
+  const [customizeForm, setCustomizeForm] = useState(emptyPerms)
+  const [customizeSaving, setCustomizeSaving] = useState(false)
 
   const loadComptes = useCallback(() => {
     setLoading(true)
@@ -113,10 +159,10 @@ export default function GestionRoles() {
     setMessage({ type: '', text: '' })
     try {
       await api.patch(`/auth/users/${compte.id}/`, patch)
-      setMessage({ type: 'success', text: `Rôle mis à jour pour ${compte.first_name || compte.username}.` })
+      setMessage({ type: 'success', text: `Droits mis à jour pour ${compte.first_name || compte.username}.` })
       loadComptes()
     } catch (err) {
-      setMessage({ type: 'error', text: err.response?.data?.detail || 'Erreur lors de la mise à jour du rôle.' })
+      setMessage({ type: 'error', text: err.response?.data?.detail || 'Erreur lors de la mise à jour.' })
     } finally {
       setSavingId(null)
     }
@@ -147,7 +193,7 @@ export default function GestionRoles() {
     setMessage({ type: '', text: '' })
     try {
       await api.patch(`/auth/users/${selectedMember.id}/`, patch)
-      setMessage({ type: 'success', text: `Rôle attribué à ${selectedMember.first_name || selectedMember.username}.` })
+      setMessage({ type: 'success', text: `Rôle attribué à ${selectedMember.first_name || selectedMember.username} — vous pouvez maintenant ajuster ses droits individuels avec "Personnaliser" si besoin.` })
       setSelectedMember(null)
       setSearchQuery('')
       setAssignSection('')
@@ -160,13 +206,52 @@ export default function GestionRoles() {
     }
   }
 
+  const openCustomize = (compte) => {
+    setCustomizeTarget(compte)
+    setCustomizeForm({
+      niveau_acces: compte.niveau_acces || '',
+      membres_lecture: !!compte.membres_lecture,
+      membres_ajout: !!compte.membres_ajout,
+      membres_modification: !!compte.membres_modification,
+      membres_suppression: !!compte.membres_suppression,
+      finance_lecture: !!compte.finance_lecture,
+      finance_ajout: !!compte.finance_ajout,
+      finance_modification: !!compte.finance_modification,
+      finance_suppression: !!compte.finance_suppression,
+      finance_validation: !!compte.finance_validation,
+      synthese_nationale: !!compte.synthese_nationale,
+    })
+  }
+
+  const closeCustomize = () => {
+    setCustomizeTarget(null)
+    setCustomizeForm(emptyPerms)
+  }
+
+  const handleSaveCustomize = async () => {
+    if (!customizeTarget) return
+    setCustomizeSaving(true)
+    setMessage({ type: '', text: '' })
+    try {
+      await api.patch(`/auth/users/${customizeTarget.id}/`, customizeForm)
+      setMessage({ type: 'success', text: `Droits personnalisés enregistrés pour ${customizeTarget.first_name || customizeTarget.username}.` })
+      closeCustomize()
+      loadComptes()
+    } catch (err) {
+      setMessage({ type: 'error', text: err.response?.data?.detail || "Erreur lors de l'enregistrement des droits personnalisés." })
+    } finally {
+      setCustomizeSaving(false)
+    }
+  }
+
   return (
     <Box sx={{ animation: 'fadeIn 0.4s ease' }}>
       <Typography variant="h4" sx={{ color: colors.vert, fontWeight: 600, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
         <AdminPanelSettings /> Rôles & Permissions
       </Typography>
       <Typography variant="body2" sx={{ color: colors.vertFonce, mb: 3 }}>
-        Matrice d'accès de la phase pilote — qui voit quoi, et qui peut modifier quoi.
+        Deux façons de donner un droit : choisir un <strong>rôle</strong> (hérité par tout le monde ayant ce rôle),
+        ou <strong>personnaliser</strong> les droits d'une seule personne, sans toucher aux autres.
       </Typography>
 
       {message.text && (
@@ -177,8 +262,11 @@ export default function GestionRoles() {
 
       <Card sx={{ mb: 3, borderLeft: `4px solid ${colors.vert}`, borderRadius: 2 }}>
         <CardContent>
-          <Typography variant="h6" sx={{ color: colors.vertFonce, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Info fontSize="small" /> Matrice des droits d'accès
+          <Typography variant="h6" sx={{ color: colors.vertFonce, mb: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Info fontSize="small" /> Matrice des droits (préréglages par rôle)
+          </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
+            L = Lecture · A = Ajout · M = Modification · S = Suppression · V = Validation
           </Typography>
           <TableContainer sx={{ overflowX: 'auto' }}>
             <Table size="small">
@@ -197,8 +285,8 @@ export default function GestionRoles() {
                     <TableCell>{r.niveau}</TableCell>
                     <TableCell sx={{ fontWeight: 600 }}>{r.role}</TableCell>
                     <TableCell>{r.perimetre}</TableCell>
-                    <TableCell>{droitChip(r.membres)}</TableCell>
-                    <TableCell>{droitChip(r.finance)}</TableCell>
+                    <TableCell><ActionDots code={r.membres} /></TableCell>
+                    <TableCell><ActionDots code={r.finance} /></TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -251,13 +339,7 @@ export default function GestionRoles() {
                 <MenuItem key={r.value} value={r.value}>{r.role}</MenuItem>
               ))}
             </TextField>
-            {SCOPED_SECTION_ROLES.includes(assignRole) && (
-              <TextField select size="small" label="Section" value={assignSection} onChange={(e) => setAssignSection(e.target.value)} sx={{ minWidth: 200 }}>
-                <MenuItem value="">Choisir…</MenuItem>
-                {sections.map((s) => <MenuItem key={s.id} value={s.id}>{s.nom}</MenuItem>)}
-              </TextField>
-            )}
-            {SCOPED_CELLULE_ROLES.includes(assignRole) && (
+            {(SCOPED_SECTION_ROLES.includes(assignRole) || SCOPED_CELLULE_ROLES.includes(assignRole)) && (
               <TextField select size="small" label="Section" value={assignSection} onChange={(e) => { setAssignSection(e.target.value); setAssignDahira('') }} sx={{ minWidth: 200 }}>
                 <MenuItem value="">Choisir…</MenuItem>
                 {sections.map((s) => <MenuItem key={s.id} value={s.id}>{s.nom}</MenuItem>)}
@@ -294,61 +376,89 @@ export default function GestionRoles() {
                 <TableHead>
                   <TableRow sx={{ bgcolor: `${colors.vert}12` }}>
                     <TableCell>Compte</TableCell>
-                    <TableCell>Rôle</TableCell>
+                    <TableCell>Rôle (préréglage)</TableCell>
                     <TableCell>Section / Dahira</TableCell>
+                    <TableCell>Droits actuels</TableCell>
                     <TableCell align="right">Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {comptes.length === 0 ? (
-                    <TableRow><TableCell colSpan={4} align="center">Aucun compte de gestion pour l'instant.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} align="center">Aucun compte de gestion pour l'instant.</TableCell></TableRow>
                   ) : (
-                    comptes.map((c) => (
-                      <TableRow key={c.id} hover>
-                        <TableCell>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Avatar sx={{ width: 30, height: 30, bgcolor: colors.or, fontSize: 13 }}>{c.first_name?.[0]}{c.last_name?.[0]}</Avatar>
-                            <Box>
-                              <Typography variant="body2" sx={{ fontWeight: 600 }}>{`${c.first_name || ''} ${c.last_name || ''}`.trim() || c.username}</Typography>
-                              <Typography variant="caption" color="text.secondary">@{c.username}</Typography>
+                    comptes.map((c) => {
+                      const membresCode = ['membres_lecture', 'membres_ajout', 'membres_modification', 'membres_suppression']
+                        .map((f, i) => (c[f] ? 'LAMS'[i] : '')).join('')
+                      const financeCode = ['finance_lecture', 'finance_ajout', 'finance_modification', 'finance_suppression', 'finance_validation']
+                        .map((f, i) => (c[f] ? 'LAMSV'[i] : '')).join('')
+                      return (
+                        <TableRow key={c.id} hover>
+                          <TableCell>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Avatar sx={{ width: 30, height: 30, bgcolor: colors.or, fontSize: 13 }}>{c.first_name?.[0]}{c.last_name?.[0]}</Avatar>
+                              <Box>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>{`${c.first_name || ''} ${c.last_name || ''}`.trim() || c.username}</Typography>
+                                <Typography variant="caption" color="text.secondary">@{c.username}</Typography>
+                              </Box>
                             </Box>
-                          </Box>
-                        </TableCell>
-                        <TableCell>
-                          <TextField
-                            select
-                            size="small"
-                            value={c.role}
-                            disabled={savingId === c.id}
-                            onChange={(e) => handleUpdateCompte(c, { role: e.target.value })}
-                            sx={{ minWidth: 220 }}
-                          >
-                            {MATRICE.filter((r) => r.value !== 'membre').map((r) => (
-                              <MenuItem key={r.value} value={r.value}>{r.role}</MenuItem>
-                            ))}
-                          </TextField>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2">{c.section_nom || '—'}</Typography>
-                          <Typography variant="caption" color="text.secondary">{c.dahira_nom || ''}</Typography>
-                        </TableCell>
-                        <TableCell align="right">
-                          <Tooltip title="Retirer les droits de gestion (retour à Membre)">
-                            <span>
-                              <Button
-                                size="small"
-                                color="error"
-                                startIcon={<RestartAlt />}
-                                disabled={savingId === c.id}
-                                onClick={() => handleRetrograder(c)}
-                              >
-                                Rétrograder
-                              </Button>
-                            </span>
-                          </Tooltip>
-                        </TableCell>
-                      </TableRow>
-                    ))
+                          </TableCell>
+                          <TableCell>
+                            <TextField
+                              select
+                              size="small"
+                              value={c.role}
+                              disabled={savingId === c.id}
+                              onChange={(e) => handleUpdateCompte(c, { role: e.target.value })}
+                              sx={{ minWidth: 220 }}
+                            >
+                              {MATRICE.filter((r) => r.value !== 'membre').map((r) => (
+                                <MenuItem key={r.value} value={r.value}>{r.role}</MenuItem>
+                              ))}
+                            </TextField>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2">{c.section_nom || '—'}</Typography>
+                            <Typography variant="caption" color="text.secondary">{c.dahira_nom || ''}</Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <Typography variant="caption" sx={{ width: 52 }}>Membres</Typography>
+                                <ActionDots code={membresCode} />
+                              </Box>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <Typography variant="caption" sx={{ width: 52 }}>Finance</Typography>
+                                <ActionDots code={financeCode} />
+                              </Box>
+                            </Box>
+                          </TableCell>
+                          <TableCell align="right">
+                            <Button
+                              size="small"
+                              startIcon={<Tune />}
+                              onClick={() => openCustomize(c)}
+                              disabled={savingId === c.id}
+                              sx={{ mr: 1 }}
+                            >
+                              Personnaliser
+                            </Button>
+                            <Tooltip title="Retirer les droits de gestion (retour à Membre)">
+                              <span>
+                                <Button
+                                  size="small"
+                                  color="error"
+                                  startIcon={<RestartAlt />}
+                                  disabled={savingId === c.id}
+                                  onClick={() => handleRetrograder(c)}
+                                >
+                                  Rétrograder
+                                </Button>
+                              </span>
+                            </Tooltip>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })
                   )}
                 </TableBody>
               </Table>
@@ -356,6 +466,74 @@ export default function GestionRoles() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!customizeTarget} onClose={closeCustomize} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ bgcolor: colors.vert, color: '#fff' }}>
+          Personnaliser les droits — {customizeTarget ? (`${customizeTarget.first_name || ''} ${customizeTarget.last_name || ''}`.trim() || customizeTarget.username) : ''}
+        </DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Ces droits s'appliquent uniquement à cette personne — ils n'affectent personne d'autre, même si elle
+            partage le même rôle affiché.
+          </Typography>
+          <TextField
+            select
+            size="small"
+            label="Périmètre (niveau)"
+            value={customizeForm.niveau_acces}
+            onChange={(e) => setCustomizeForm((f) => ({ ...f, niveau_acces: e.target.value }))}
+            fullWidth
+            sx={{ mb: 2 }}
+          >
+            <MenuItem value="">Aucun</MenuItem>
+            <MenuItem value="national">National (cellules pilotes)</MenuItem>
+            <MenuItem value="section">Section (sa propre section)</MenuItem>
+            <MenuItem value="cellule">Cellule (sa propre cellule)</MenuItem>
+          </TextField>
+
+          <Typography variant="subtitle2" sx={{ color: colors.vertFonce, mb: 1 }}>Membres</Typography>
+          <FormGroup row sx={{ mb: 2 }}>
+            {CHAMPS_MEMBRES.map((c) => (
+              <FormControlLabel
+                key={c.field}
+                control={<Checkbox size="small" checked={customizeForm[c.field]} onChange={(e) => setCustomizeForm((f) => ({ ...f, [c.field]: e.target.checked }))} />}
+                label={c.label}
+              />
+            ))}
+          </FormGroup>
+
+          <Divider sx={{ mb: 2 }} />
+
+          <Typography variant="subtitle2" sx={{ color: colors.vertFonce, mb: 1 }}>Finance</Typography>
+          <FormGroup row sx={{ mb: 2 }}>
+            {CHAMPS_FINANCE.map((c) => (
+              <FormControlLabel
+                key={c.field}
+                control={<Checkbox size="small" checked={customizeForm[c.field]} onChange={(e) => setCustomizeForm((f) => ({ ...f, [c.field]: e.target.checked }))} />}
+                label={c.label}
+              />
+            ))}
+          </FormGroup>
+
+          <Divider sx={{ mb: 2 }} />
+
+          <FormControlLabel
+            control={<Checkbox size="small" checked={customizeForm.synthese_nationale} onChange={(e) => setCustomizeForm((f) => ({ ...f, synthese_nationale: e.target.checked }))} />}
+            label="Synthèse hiérarchique nationale"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeCustomize}>Annuler</Button>
+          <Button
+            variant="contained"
+            disabled={customizeSaving}
+            onClick={handleSaveCustomize}
+            sx={{ bgcolor: colors.vert, '&:hover': { bgcolor: colors.vertFonce } }}
+          >
+            {customizeSaving ? <CircularProgress size={20} /> : 'Enregistrer'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }

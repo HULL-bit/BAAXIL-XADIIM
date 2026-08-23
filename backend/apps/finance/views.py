@@ -10,7 +10,8 @@ from apps.accounts.permissions import (
     is_super_admin,
     can_view_finance,
     can_write_finance,
-    FINANCE_READ_ROLES,
+    has_perm,
+    has_finance_visibility,
     scope_filter,
 )
 
@@ -22,14 +23,13 @@ class CotisationMensuelleViewSet(viewsets.ModelViewSet):
     queryset = CotisationMensuelle.objects.all().order_by('-annee', '-mois')
     serializer_class = CotisationMensuelleSerializer
     permission_classes = [IsAuthenticated]
-    filterset_fields = ['membre', 'mois', 'annee', 'statut']
+    filterset_fields = ['membre', 'mois', 'annee', 'statut', 'type_cotisation']
 
     def get_queryset(self):
         # Optimize queries with select_related and only necessary fields
         qs = CotisationMensuelle.objects.select_related('membre').order_by('-annee', '-mois')
         user = self.request.user
-        role = getattr(user, 'role', None)
-        if is_super_admin(user) or role in FINANCE_READ_ROLES:
+        if has_finance_visibility(user):
             qs = scope_filter(qs, user, 'membre__dahira', 'membre__section')
             regroupement_id = self.request.query_params.get('regroupement')
             section_id = self.request.query_params.get('section')
@@ -49,12 +49,13 @@ class CotisationMensuelleViewSet(viewsets.ModelViewSet):
         # permission_classes déclaré directement sur @action — toute action réservée
         # à l'écriture finance doit donc être listée ici explicitement, sinon elle
         # retombe silencieusement sur IsAuthenticated (accessible à un simple membre).
-        if self.action in ['create', 'update', 'partial_update', 'destroy', 'valider_paiements', 'generer']:
+        if self.action in ['create', 'update', 'partial_update', 'destroy', 'valider_paiements']:
             return [IsFinanceWriteAccess()]
-        if self.action == 'generer_assignation_annuelle':
-            # Réservé au Super Admin uniquement (aucun rôle Section n'a l'écriture
-            # dans la matrice pilote — décision produit validée) : IsFinanceWriteAccess
-            # laisserait passer un Secrétaire aux Finances de Cellule, trop permissif ici.
+        if self.action in ('generer', 'generer_assignation_annuelle'):
+            # generer() porte sur TOUS les membres actifs (pas de scope cellule) et
+            # generer_assignation_annuelle sur une section entière — deux opérations
+            # structurelles réservées au Super Admin (IsFinanceWriteAccess laisserait
+            # passer n'importe quel Secrétaire aux Finances de Cellule, trop permissif).
             return [IsAdminUser()]
         return [IsAuthenticated()]
 
@@ -63,7 +64,7 @@ class CotisationMensuelleViewSet(viewsets.ModelViewSet):
         from rest_framework.exceptions import PermissionDenied
 
         membre = serializer.validated_data.get('membre')
-        if membre is not None and not can_write_finance(self.request.user, dahira_id=membre.dahira_id):
+        if membre is not None and not has_perm(self.request.user, 'finance_ajout', dahira_id=membre.dahira_id):
             raise PermissionDenied("Vous ne pouvez enregistrer une cotisation que pour un membre de votre propre cellule.")
         # Ensure type_cotisation is set before saving
         if not serializer.validated_data.get('type_cotisation'):
@@ -75,6 +76,11 @@ class CotisationMensuelleViewSet(viewsets.ModelViewSet):
             instance.save(update_fields=['type_cotisation'])
 
     def perform_update(self, serializer):
+        from rest_framework.exceptions import PermissionDenied
+
+        instance_avant = serializer.instance
+        if not has_perm(self.request.user, 'finance_modification', dahira_id=instance_avant.membre.dahira_id):
+            raise PermissionDenied("Vous ne pouvez modifier que les cotisations de votre propre cellule.")
         instance = serializer.save()
         if instance.statut == 'payee' and not instance.date_paiement:
             from django.utils import timezone
@@ -85,6 +91,13 @@ class CotisationMensuelleViewSet(viewsets.ModelViewSet):
             # on efface la date de paiement pour ne pas laisser une donnée incohérente.
             instance.date_paiement = None
             instance.save(update_fields=['date_paiement'])
+
+    def perform_destroy(self, instance):
+        from rest_framework.exceptions import PermissionDenied
+
+        if not has_perm(self.request.user, 'finance_suppression', dahira_id=instance.membre.dahira_id):
+            raise PermissionDenied("Vous ne pouvez supprimer que les cotisations de votre propre cellule.")
+        instance.delete()
 
     @action(detail=False, methods=['get'])
     def statistiques(self, request):
@@ -211,10 +224,7 @@ class CotisationMensuelleViewSet(viewsets.ModelViewSet):
 
         user = request.user
         scope = user_scope(user)
-        role = getattr(user, 'role', None)
-        if scope['level'] not in ('all', 'national', 'section') or (
-            scope['level'] != 'all' and role not in FINANCE_READ_ROLES
-        ):
+        if not (is_super_admin(user) or user.synthese_nationale):
             return Response({'detail': 'Non autorisé'}, status=status.HTTP_403_FORBIDDEN)
 
         from .rapport_export import build_hierarchie_data
@@ -253,6 +263,9 @@ class CotisationMensuelleViewSet(viewsets.ModelViewSet):
         (coche + bouton côté Secrétaire aux Finances de Cellule ou Super Admin). Body : {"ids": [1, 2, 3]}
         """
         from django.utils import timezone
+
+        if not is_super_admin(request.user) and not request.user.finance_validation:
+            return Response({'detail': "Vous n'avez pas le droit de valider des paiements."}, status=status.HTTP_403_FORBIDDEN)
 
         ids = request.data.get('ids') or []
         if not isinstance(ids, list) or not ids:
@@ -542,8 +555,7 @@ class DepenseHadiyaViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = Transaction.objects.filter(type_transaction__in=['depense', 'hadiya']).select_related('membre').order_by('-date_transaction')
         user = self.request.user
-        role = getattr(user, 'role', None)
-        if is_super_admin(user) or role in FINANCE_READ_ROLES:
+        if has_finance_visibility(user):
             return scope_filter(qs, user, 'membre__dahira', 'membre__section')
         return qs.none()
 

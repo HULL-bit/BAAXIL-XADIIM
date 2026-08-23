@@ -68,6 +68,10 @@ export default function FinanceParDahira() {
   const [filterMois, setFilterMois] = useState('')
   const [filterAnnee, setFilterAnnee] = useState('')
   const [filterStatut, setFilterStatut] = useState('')
+  // Cotisations mensuelles et assignations annuelles sont deux choses différentes
+  // (fréquence, périmètre) — filtre dédié pour ne jamais les mélanger par défaut
+  // dans les gros dahiras qui ont les deux en même temps.
+  const [filterType, setFilterType] = useState('')
   const [membres, setMembres] = useState([])
   const [cotisations, setCotisations] = useState([])
   const [selectedCotisationIds, setSelectedCotisationIds] = useState({})
@@ -199,6 +203,7 @@ export default function FinanceParDahira() {
     if (filterMois) cotisationParams.mois = filterMois
     if (filterAnnee) cotisationParams.annee = filterAnnee
     if (filterStatut) cotisationParams.statut = filterStatut
+    if (filterType) cotisationParams.type_cotisation = filterType
 
     // Use Promise.allSettled for better error handling and performance
     // membres n'est utilisé ici que pour son .length/.id (cf. handleSelectAll) : minimal=1
@@ -222,7 +227,7 @@ export default function FinanceParDahira() {
       .get('/finance/cotisations/statistiques/', { params })
       .then(({ data }) => setStats(data))
       .catch(() => setStats(null))
-  }, [selectedRegroupementId, selectedSectionId, selectedDahiraId, filterMois, filterAnnee, filterStatut, canView])
+  }, [selectedRegroupementId, selectedSectionId, selectedDahiraId, filterMois, filterAnnee, filterStatut, filterType, canView])
 
   const selectedRegroupement = regroupements.find((r) => r.id === Number(selectedRegroupementId))
   const selectedSection = sections.find((s) => s.id === Number(selectedSectionId))
@@ -798,6 +803,18 @@ export default function FinanceParDahira() {
           {[new Date().getFullYear(), new Date().getFullYear() - 1, new Date().getFullYear() - 2].map((y) => (
             <MenuItem key={y} value={y}>{y}</MenuItem>
           ))}
+        </TextField>
+        <TextField
+          select
+          label="Type"
+          value={filterType}
+          onChange={(e) => setFilterType(e.target.value)}
+          size="small"
+          sx={{ minWidth: 170 }}
+        >
+          <MenuItem value="">Mensualités + assignations</MenuItem>
+          <MenuItem value="mensualite">Cotisations mensuelles</MenuItem>
+          <MenuItem value="assignation">Assignations annuelles</MenuItem>
         </TextField>
         <TextField
           select

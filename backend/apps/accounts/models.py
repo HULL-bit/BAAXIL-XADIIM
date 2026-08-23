@@ -41,10 +41,37 @@ class CustomUser(AbstractUser):
         ('O-', 'O-'),
     ]
 
+    # Périmètre (à quel niveau de la pyramide s'appliquent les permissions ci-dessous) :
+    # 'national' = cellules pilotes (toutes), 'section' = cellules pilotes de sa
+    # propre section (user.section), 'cellule' = sa propre cellule (user.dahira).
+    NIVEAU_ACCES_CHOICES = [
+        ('national', 'National'),
+        ('section', 'Section'),
+        ('cellule', 'Cellule'),
+    ]
+
     telephone = models.CharField(max_length=20, blank=True)
     adresse = models.TextField(blank=True)
     # Augmenter max_length pour accepter les rôles spécialisés (jusqu'à 21 caractères)
     role = models.CharField(max_length=32, choices=ROLE_CHOICES, default='membre')
+
+    # --- Permissions individuelles ---------------------------------------------
+    # `role` ci-dessus reste une étiquette pratique qui pré-remplit ces champs
+    # (un "préréglage" hérité par tout le monde quand on choisit ce rôle), mais ce
+    # sont ces champs qui font foi pour l'autorisation réelle — un admin peut aussi
+    # les ajuster pour UNE personne précise, indépendamment de son rôle affiché
+    # (voir apps.accounts.permissions.ROLE_PRESETS et Gestion des rôles côté UI).
+    niveau_acces = models.CharField(max_length=10, choices=NIVEAU_ACCES_CHOICES, blank=True)
+    membres_lecture = models.BooleanField(default=False, verbose_name='Membres — Lecture')
+    membres_ajout = models.BooleanField(default=False, verbose_name='Membres — Ajout')
+    membres_modification = models.BooleanField(default=False, verbose_name='Membres — Modification')
+    membres_suppression = models.BooleanField(default=False, verbose_name='Membres — Suppression')
+    finance_lecture = models.BooleanField(default=False, verbose_name='Finance — Lecture')
+    finance_ajout = models.BooleanField(default=False, verbose_name='Finance — Ajout')
+    finance_modification = models.BooleanField(default=False, verbose_name='Finance — Modification')
+    finance_suppression = models.BooleanField(default=False, verbose_name='Finance — Suppression')
+    finance_validation = models.BooleanField(default=False, verbose_name='Finance — Validation')
+    synthese_nationale = models.BooleanField(default=False, verbose_name='Synthèse hiérarchique nationale')
     photo = models.ImageField(upload_to='photos_membres/', null=True, blank=True)
     photo_updated_at = models.DateTimeField(null=True, blank=True, help_text='Mis à jour à chaque changement de photo (cache bust)')
     date_inscription = models.DateTimeField(auto_now_add=True)

@@ -15,7 +15,6 @@ const FinanceParDahira = lazy(() => import('./components/finance/FinanceParDahir
 const FinanceHierarchie = lazy(() => import('./components/finance/FinanceHierarchie'))
 const LeveesFonds = lazy(() => import('./components/finance/LeveesFonds'))
 const Barkelou = lazy(() => import('./components/finance/Barkelou'))
-const DepensesHadiya = lazy(() => import('./components/finance/DepensesHadiya'))
 const ProgrammeKamil = lazy(() => import('./components/culturelle/ProgrammeKamil'))
 const MesProgressions = lazy(() => import('./components/culturelle/MesProgressions'))
 const ValidationsKamil = lazy(() => import('./components/culturelle/ValidationsKamil'))
@@ -73,7 +72,6 @@ function AppRoutes() {
         <Route path="finance/cotisations" element={<Navigate to="/finance/par-dahira" replace />} />
         <Route path="finance/par-dahira" element={<ProtectedRoute permission="can_view_finance"><FinanceParDahira /></ProtectedRoute>} />
         <Route path="finance/hierarchie" element={<ProtectedRoute permission="can_view_national_synthese"><FinanceHierarchie /></ProtectedRoute>} />
-        <Route path="finance/depenses-hadiya" element={<ProtectedRoute permission="can_view_finance"><DepensesHadiya /></ProtectedRoute>} />
         <Route path="finance/levees-fonds" element={<LeveesFonds />} />
         <Route path="finance/barkelou" element={<Barkelou />} />
         <Route path="culturelle/kamil" element={<ProgrammeKamil />} />

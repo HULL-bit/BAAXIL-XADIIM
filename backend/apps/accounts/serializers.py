@@ -60,6 +60,10 @@ class UserSerializer(serializers.ModelSerializer):
             'montant_cotisation',
             'specialite', 'biographie',
             'cotisations_payees', 'chapitres_lus', 'evenements_participes',
+            'niveau_acces',
+            'membres_lecture', 'membres_ajout', 'membres_modification', 'membres_suppression',
+            'finance_lecture', 'finance_ajout', 'finance_modification', 'finance_suppression', 'finance_validation',
+            'synthese_nationale',
         ]
         read_only_fields = ['date_inscription', 'cotisations_payees', 'chapitres_lus', 'evenements_participes', 'regroupement_nom', 'section_nom', 'sous_section_label', 'dahira_nom']
 
@@ -103,11 +107,17 @@ class UserCreateSerializer(serializers.ModelSerializer):
         ]
 
     def create(self, validated_data):
+        from .permissions import apply_role_preset
+
         password = validated_data.pop('password')
         user = User(**validated_data)
         # Si on crée un admin via l'API, on lui donne aussi les droits staff
         if user.role == 'admin':
             user.is_staff = True
+        else:
+            # Le rôle choisi pré-remplit les droits individuels (préréglage hérité
+            # par tout le monde ayant ce rôle) — ajustable ensuite par personne.
+            apply_role_preset(user, user.role)
         user.set_password(password)
         user.save()
         return user

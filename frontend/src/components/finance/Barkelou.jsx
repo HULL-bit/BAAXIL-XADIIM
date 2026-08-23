@@ -17,7 +17,6 @@ import {
   TableRow,
   Paper,
   Grid,
-  Chip,
 } from '@mui/material'
 import { AccountBalance, Payment } from '@mui/icons-material'
 import api from '../../services/api'
@@ -64,7 +63,13 @@ export default function Barkelou() {
 
   const moisCourant = now.getMonth() + 1
   const anneeCourante = now.getFullYear()
-  const cotisationCourante = cotisations.find((c) => c.mois === moisCourant && c.annee === anneeCourante)
+  const cotisationCourante = cotisations.find((c) => c.type_cotisation !== 'assignation' && c.mois === moisCourant && c.annee === anneeCourante)
+  const assignationCourante = cotisations.find((c) => c.type_cotisation === 'assignation' && c.annee === anneeCourante)
+  // Mensualités et assignations annuelles sont deux choses différentes (l'une est
+  // mensuelle par cellule, l'autre annuelle et répartie par section) — on les
+  // sépare toujours à l'affichage pour ne jamais les mélanger.
+  const mensualites = cotisations.filter((c) => c.type_cotisation !== 'assignation')
+  const assignations = cotisations.filter((c) => c.type_cotisation === 'assignation')
 
   const handleDeclarerPaiement = async (cotisation) => {
     const reference = (referenceInputs[cotisation.id] || '').trim()
@@ -174,7 +179,55 @@ export default function Barkelou() {
         </CardContent>
       </Card>
 
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+      {assignationCourante && (
+        <Card sx={{ mb: 4, borderLeft: `4px solid #8B5CF6`, borderRadius: 2 }}>
+          <CardContent>
+            <Typography variant="h6" sx={{ color: COLORS.vertFonce, mb: 2 }}>
+              Assignation annuelle {anneeCourante} — {assignationCourante.objet_assignation || 'Cotisation exceptionnelle de section'}
+            </Typography>
+            <Grid container spacing={2} alignItems="center">
+              <Grid item xs={12} sm={4}>
+                <Typography variant="body2" color="text.secondary">Montant à cotiser</Typography>
+                <Typography variant="h5" sx={{ color: '#8B5CF6', fontWeight: 700 }}>
+                  {Number(assignationCourante.montant).toLocaleString('fr-FR')} FCFA
+                </Typography>
+              </Grid>
+              <Grid item xs={12} sm={3}>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>Statut</Typography>
+                <StatutCotisationChip statut={assignationCourante.statut} />
+              </Grid>
+              {assignationCourante.statut !== 'payee' ? (
+                <Grid item xs={12} sm={5}>
+                  <Box sx={{ display: 'flex', gap: 1, mt: { xs: 1, sm: 0 }, flexWrap: 'wrap' }}>
+                    <TextField
+                      size="small"
+                      label="Référence Wave après paiement"
+                      value={referenceInputs[assignationCourante.id] || ''}
+                      onChange={(e) => setReferenceInputs((f) => ({ ...f, [assignationCourante.id]: e.target.value }))}
+                      sx={{ minWidth: 220 }}
+                    />
+                    <Button
+                      variant="outlined"
+                      disabled={submittingId === assignationCourante.id}
+                      onClick={() => handleDeclarerPaiement(assignationCourante)}
+                    >
+                      {submittingId === assignationCourante.id ? <CircularProgress size={20} /> : "J'ai payé"}
+                    </Button>
+                  </Box>
+                </Grid>
+              ) : (
+                <Grid item xs={12} sm={5}>
+                  <Typography variant="body2" sx={{ color: 'success.main' }}>
+                    Payée le {assignationCourante.date_paiement ? new Date(assignationCourante.date_paiement).toLocaleDateString('fr-FR') : '—'}
+                  </Typography>
+                </Grid>
+              )}
+            </Grid>
+          </CardContent>
+        </Card>
+      )}
+
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, flexWrap: 'wrap' }}>
         <Typography variant="h6" sx={{ color: COLORS.vertFonce }}>Historique</Typography>
         <TextField
           select
@@ -193,38 +246,67 @@ export default function Barkelou() {
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress /></Box>
       ) : (
-        <TableContainer component={Paper} sx={{ borderLeft: `4px solid ${COLORS.vert}`, borderRadius: 2 }}>
-          <Table size="small">
-            <TableHead>
-              <TableRow sx={{ bgcolor: `${COLORS.vert}15` }}>
-                <TableCell>Période</TableCell>
-                <TableCell>Type</TableCell>
-                <TableCell>Montant</TableCell>
-                <TableCell>Statut</TableCell>
-                <TableCell>Date de paiement</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {cotisations.length === 0 ? (
-                <TableRow><TableCell colSpan={5} align="center">Aucune cotisation pour {filterAnnee}.</TableCell></TableRow>
-              ) : (
-                [...cotisations].sort((a, b) => b.mois - a.mois).map((c) => (
-                  <TableRow key={c.id}>
-                    <TableCell>{c.type_cotisation === 'assignation' ? `Année ${c.annee}` : (MOIS.find((m) => m.value === c.mois)?.label || c.mois)}</TableCell>
-                    <TableCell>
-                      {c.type_cotisation === 'assignation'
-                        ? <Chip label={c.objet_assignation || 'Assignation annuelle'} size="small" color="secondary" />
-                        : <Chip label="Mensualité" size="small" variant="outlined" />}
-                    </TableCell>
-                    <TableCell>{Number(c.montant).toLocaleString('fr-FR')} FCFA</TableCell>
-                    <TableCell><StatutCotisationChip statut={c.statut} /></TableCell>
-                    <TableCell>{c.date_paiement ? new Date(c.date_paiement).toLocaleDateString('fr-FR') : '—'}</TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
+        <>
+          {/* Cotisations mensuelles et assignations annuelles sont deux choses
+              différentes (fréquence, périmètre) — toujours affichées séparément. */}
+          <Typography variant="subtitle2" sx={{ color: COLORS.vertFonce, mb: 1 }}>Cotisations mensuelles</Typography>
+          <TableContainer component={Paper} sx={{ borderLeft: `4px solid ${COLORS.vert}`, borderRadius: 2, mb: 3 }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow sx={{ bgcolor: `${COLORS.vert}15` }}>
+                  <TableCell>Mois</TableCell>
+                  <TableCell>Montant</TableCell>
+                  <TableCell>Statut</TableCell>
+                  <TableCell>Date de paiement</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {mensualites.length === 0 ? (
+                  <TableRow><TableCell colSpan={4} align="center">Aucune cotisation mensuelle pour {filterAnnee}.</TableCell></TableRow>
+                ) : (
+                  [...mensualites].sort((a, b) => b.mois - a.mois).map((c) => (
+                    <TableRow key={c.id}>
+                      <TableCell>{MOIS.find((m) => m.value === c.mois)?.label || c.mois}</TableCell>
+                      <TableCell>{Number(c.montant).toLocaleString('fr-FR')} FCFA</TableCell>
+                      <TableCell><StatutCotisationChip statut={c.statut} /></TableCell>
+                      <TableCell>{c.date_paiement ? new Date(c.date_paiement).toLocaleDateString('fr-FR') : '—'}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+
+          <Typography variant="subtitle2" sx={{ color: COLORS.vertFonce, mb: 1 }}>Assignations annuelles</Typography>
+          <TableContainer component={Paper} sx={{ borderLeft: `4px solid #8B5CF6`, borderRadius: 2 }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow sx={{ bgcolor: '#8B5CF615' }}>
+                  <TableCell>Année</TableCell>
+                  <TableCell>Objet</TableCell>
+                  <TableCell>Montant</TableCell>
+                  <TableCell>Statut</TableCell>
+                  <TableCell>Date de paiement</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {assignations.length === 0 ? (
+                  <TableRow><TableCell colSpan={5} align="center">Aucune assignation annuelle pour {filterAnnee}.</TableCell></TableRow>
+                ) : (
+                  assignations.map((c) => (
+                    <TableRow key={c.id}>
+                      <TableCell>{c.annee}</TableCell>
+                      <TableCell>{c.objet_assignation || 'Assignation annuelle'}</TableCell>
+                      <TableCell>{Number(c.montant).toLocaleString('fr-FR')} FCFA</TableCell>
+                      <TableCell><StatutCotisationChip statut={c.statut} /></TableCell>
+                      <TableCell>{c.date_paiement ? new Date(c.date_paiement).toLocaleDateString('fr-FR') : '—'}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </>
       )}
     </Box>
   )

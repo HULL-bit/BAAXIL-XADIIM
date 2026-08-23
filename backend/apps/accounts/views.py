@@ -20,8 +20,11 @@ from .permissions import (
     is_super_admin,
     can_view_members,
     can_write_members,
+    has_perm,
     permissions_summary,
     scope_filter,
+    apply_role_preset,
+    PERMISSION_FIELDS,
     CanViewMembers,
     IsAdminRoleOrStaff,
 )
@@ -61,16 +64,17 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 def register(request):
     """
     Auto-inscription publique (formulaire /register, non authentifié) OU création
-    d'un membre par un Secrétaire Administratif de Cellule / Super Admin depuis
-    Gestion des membres (requête authentifiée). Dans ce second cas, on verrouille le
-    rattachement organisationnel et le rôle au périmètre de l'auteur — un Secrétaire
-    Administratif de Cellule ne doit jamais pouvoir créer un membre (ou un compte à
-    privilèges) en dehors de sa propre cellule.
+    d'un membre par toute personne ayant le droit individuel "membres_ajout" sur sa
+    cellule (Super Admin, ou n'importe qui à qui ce droit a été accordé — que ce soit
+    via le préréglage du rôle "Secrétaire Administratif de Cellule" ou attribué
+    directement à cette personne) depuis Gestion des membres (requête authentifiée).
+    Dans ce second cas, on verrouille le rattachement organisationnel et le rôle au
+    périmètre de l'auteur — jamais de création hors de sa propre cellule.
     """
     data = request.data
     requester = request.user
     if requester and requester.is_authenticated and not is_super_admin(requester):
-        if getattr(requester, 'role', None) != 'cellule_admin':
+        if not has_perm(requester, 'membres_ajout', dahira_id=requester.dahira_id):
             return Response({'detail': "Vous n'avez pas les droits pour créer un membre."}, status=status.HTTP_403_FORBIDDEN)
         data = data.copy()
         data['role'] = 'membre'
@@ -226,30 +230,43 @@ class UserDetail(generics.RetrieveUpdateDestroyAPIView):
     def get_object(self):
         """Un utilisateur peut toujours consulter/modifier sa propre fiche (ex. Mon
         profil) ; l'accès à la fiche d'un AUTRE membre suit la matrice de périmètre
-        (can_view_members en lecture, can_write_members en écriture)."""
+        (membres_lecture en lecture, membres_modification/suppression en écriture)."""
         from rest_framework.exceptions import PermissionDenied
 
         instance = super().get_object()
         user = self.request.user
         if instance.pk == user.pk:
             return instance
-        if self.request.method in ('PUT', 'PATCH', 'DELETE'):
-            if not can_write_members(user, dahira_id=instance.dahira_id):
+        method = self.request.method
+        if method == 'DELETE':
+            if not has_perm(user, 'membres_suppression', dahira_id=instance.dahira_id):
+                raise PermissionDenied("Vous ne pouvez supprimer que les membres de votre propre cellule.")
+        elif method in ('PUT', 'PATCH'):
+            if not has_perm(user, 'membres_modification', dahira_id=instance.dahira_id):
                 raise PermissionDenied("Vous ne pouvez modifier que les membres de votre propre cellule.")
         elif not (is_super_admin(user) or can_view_members(user, dahira_id=instance.dahira_id, section_id=instance.section_id)):
             raise PermissionDenied("Ce membre n'est pas dans votre périmètre.")
         return instance
 
+    # Champs qui ne peuvent être modifiés que par un Super Admin (rôle, rattachement
+    # organisationnel, et surtout les droits individuels eux-mêmes — sinon n'importe
+    # qui ayant le droit "membres_modification" pourrait s'auto-accorder plus de
+    # droits via un PATCH sur sa propre fiche).
+    _CHAMPS_RESERVES_SUPER_ADMIN = (
+        'role', 'regroupement', 'section', 'sous_section', 'dahira', 'is_staff', 'is_superuser',
+        'niveau_acces', 'membres_lecture', 'membres_ajout', 'membres_modification', 'membres_suppression',
+        'finance_lecture', 'finance_ajout', 'finance_modification', 'finance_suppression', 'finance_validation',
+        'synthese_nationale',
+    )
+
     def _safe_data(self, request, instance):
-        """Un Secrétaire Administratif de Cellule (non Super Admin) modifiant un AUTRE
-        membre ne doit jamais pouvoir changer son rôle ni le déplacer hors de sa propre
-        cellule via le corps de la requête (même s'il a le droit d'éditer sa fiche) —
-        même verrou que dans register(). Retourne une copie mutable du payload."""
+        """Retourne une copie mutable du payload, débarrassée des champs réservés au
+        Super Admin — y compris pour l'auto-édition (un utilisateur ne doit jamais
+        pouvoir s'auto-accorder un rôle ou des droits via PATCH sur sa propre fiche)."""
         data = request.data.copy()
-        user = request.user
-        if is_super_admin(user) or instance.pk == user.pk:
+        if is_super_admin(request.user):
             return data
-        for field in ('role', 'regroupement', 'section', 'sous_section', 'dahira', 'is_staff', 'is_superuser'):
+        for field in self._CHAMPS_RESERVES_SUPER_ADMIN:
             data.pop(field, None)
         return data
 
@@ -260,6 +277,15 @@ class UserDetail(generics.RetrieveUpdateDestroyAPIView):
         data = self._safe_data(request, instance)
         serializer = self.get_serializer(instance, data=data, partial=partial)
         serializer.is_valid(raise_exception=True)
+        # Changer le rôle réapplique son préréglage de droits (hérité par "tout le
+        # monde ayant ce rôle") — sauf pour les droits explicitement envoyés dans la
+        # même requête, qui priment (permet de choisir un rôle ET l'ajuster en un clic).
+        if 'role' in data and data['role'] != old_role:
+            preset_target = User(role=data['role'])
+            apply_role_preset(preset_target, data['role'])
+            for field in PERMISSION_FIELDS:
+                if field not in data:
+                    serializer.validated_data[field] = getattr(preset_target, field)
         self.perform_update(serializer)
         instance.refresh_from_db()
         if instance.pk != request.user.pk:
@@ -424,8 +450,8 @@ def import_membres_excel(request):
     from apps.organisation.models import Section, Dahira
 
     user = request.user
-    is_cellule_admin = getattr(user, 'role', None) == 'cellule_admin'
-    if not (is_super_admin(user) or is_cellule_admin):
+    peut_ajouter_partout = is_super_admin(user)
+    if not peut_ajouter_partout and not has_perm(user, 'membres_ajout', dahira_id=user.dahira_id):
         return Response({'detail': "Vous n'avez pas les droits pour importer des membres."}, status=status.HTTP_403_FORBIDDEN)
 
     uploaded = request.FILES.get('file')
@@ -488,7 +514,7 @@ def import_membres_excel(request):
             if not section or not dahira:
                 errors.append({'ligne': row_num, 'raison': f"Section/Dahira introuvable : « {section_nom} / {dahira_nom} » (créez-la d'abord dans Organisation)."})
                 continue
-            if is_cellule_admin and user.dahira_id != dahira.id:
+            if not peut_ajouter_partout and user.dahira_id != dahira.id:
                 errors.append({'ligne': row_num, 'raison': f"« {dahira_nom} » n'est pas votre cellule — ligne ignorée."})
                 continue
 

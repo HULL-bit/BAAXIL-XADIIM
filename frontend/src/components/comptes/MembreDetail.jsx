@@ -84,6 +84,9 @@ export default function MembreDetail() {
   }
   if (!membre) return null
 
+  const mensualites = [...cotisations].filter((c) => c.type_cotisation !== 'assignation').sort((a, b) => b.annee - a.annee || b.mois - a.mois)
+  const assignations = [...cotisations].filter((c) => c.type_cotisation === 'assignation').sort((a, b) => b.annee - a.annee)
+
   return (
     <Box sx={{ animation: 'fadeIn 0.4s ease' }}>
       <Button startIcon={<ArrowBack />} onClick={() => navigate(-1)} sx={{ mb: 2 }}>
@@ -173,33 +176,61 @@ export default function MembreDetail() {
 
       {canViewFinance && (
         <>
-          <Typography variant="h6" sx={{ color: colors.vertFonce, mb: 1.5 }}>Historique des cotisations</Typography>
-          <TableContainer component={Paper} sx={{ borderRadius: 2, borderLeft: `4px solid ${colors.vert}` }}>
+          {/* Mensualités et assignations annuelles sont deux choses différentes
+              (fréquence, périmètre) — toujours séparées, jamais mélangées. */}
+          <Typography variant="h6" sx={{ color: colors.vertFonce, mb: 1.5 }}>Cotisations mensuelles</Typography>
+          <TableContainer component={Paper} sx={{ borderRadius: 2, borderLeft: `4px solid ${colors.vert}`, mb: 3 }}>
             <Table size="small">
               <TableHead>
                 <TableRow sx={{ bgcolor: `${colors.vert}12` }}>
                   <TableCell>Période</TableCell>
-                  <TableCell>Type</TableCell>
                   <TableCell>Montant</TableCell>
                   <TableCell>Statut</TableCell>
                   <TableCell>Date de paiement</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {cotisations.length === 0 ? (
-                  <TableRow><TableCell colSpan={5} align="center">Aucune cotisation enregistrée.</TableCell></TableRow>
+                {mensualites.length === 0 ? (
+                  <TableRow><TableCell colSpan={4} align="center">Aucune cotisation mensuelle enregistrée.</TableCell></TableRow>
                 ) : (
-                  [...cotisations]
-                    .sort((a, b) => b.annee - a.annee || b.mois - a.mois)
-                    .map((c) => (
-                      <TableRow key={c.id}>
-                        <TableCell>{c.mois === 0 ? `Année ${c.annee}` : `${MOIS_LABELS[c.mois] || c.mois} ${c.annee}`}</TableCell>
-                        <TableCell>{c.type_cotisation === 'assignation' ? (c.objet_assignation || 'Assignation annuelle') : 'Mensualité'}</TableCell>
-                        <TableCell>{Number(c.montant).toLocaleString('fr-FR')} FCFA</TableCell>
-                        <TableCell><StatutCotisationChip statut={c.statut} /></TableCell>
-                        <TableCell>{c.date_paiement ? new Date(c.date_paiement).toLocaleDateString('fr-FR') : '—'}</TableCell>
-                      </TableRow>
-                    ))
+                  mensualites.map((c) => (
+                    <TableRow key={c.id}>
+                      <TableCell>{`${MOIS_LABELS[c.mois] || c.mois} ${c.annee}`}</TableCell>
+                      <TableCell>{Number(c.montant).toLocaleString('fr-FR')} FCFA</TableCell>
+                      <TableCell><StatutCotisationChip statut={c.statut} /></TableCell>
+                      <TableCell>{c.date_paiement ? new Date(c.date_paiement).toLocaleDateString('fr-FR') : '—'}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+
+          <Typography variant="h6" sx={{ color: colors.vertFonce, mb: 1.5 }}>Assignations annuelles</Typography>
+          <TableContainer component={Paper} sx={{ borderRadius: 2, borderLeft: '4px solid #8B5CF6' }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow sx={{ bgcolor: '#8B5CF615' }}>
+                  <TableCell>Année</TableCell>
+                  <TableCell>Objet</TableCell>
+                  <TableCell>Montant</TableCell>
+                  <TableCell>Statut</TableCell>
+                  <TableCell>Date de paiement</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {assignations.length === 0 ? (
+                  <TableRow><TableCell colSpan={5} align="center">Aucune assignation annuelle enregistrée.</TableCell></TableRow>
+                ) : (
+                  assignations.map((c) => (
+                    <TableRow key={c.id}>
+                      <TableCell>{c.annee}</TableCell>
+                      <TableCell>{c.objet_assignation || 'Assignation annuelle'}</TableCell>
+                      <TableCell>{Number(c.montant).toLocaleString('fr-FR')} FCFA</TableCell>
+                      <TableCell><StatutCotisationChip statut={c.statut} /></TableCell>
+                      <TableCell>{c.date_paiement ? new Date(c.date_paiement).toLocaleDateString('fr-FR') : '—'}</TableCell>
+                    </TableRow>
+                  ))
                 )}
               </TableBody>
             </Table>

@@ -1,22 +1,77 @@
 from rest_framework.permissions import IsAdminUser, BasePermission
 
-# Rôles scopés lecture seule au niveau national (limités aux cellules pilotes).
-NATIONAL_READONLY_ROLES = {'national_lecture', 'secretariat_national', 'finance_national'}
-# Rôles scopés à une cellule (dahira) du user.
-CELLULE_ROLES = {'cellule_admin', 'cellule_finance', 'cellule_president'}
+# Préréglages "par rôle" (audit dahira) : choisir un rôle dans l'UI pré-remplit ces
+# champs sur le compte — mais ce sont bien les champs individuels du modèle
+# (CustomUser.membres_lecture, .finance_ajout, etc.) qui font foi ensuite. Un Super
+# Admin peut donc soit changer le rôle (tout le monde ayant ce rôle repart du même
+# préréglage), soit ajuster les droits d'UNE personne précise sans toucher aux autres.
+ROLE_PRESETS = {
+    'national_lecture': {
+        'niveau_acces': 'national',
+        'membres_lecture': True, 'membres_ajout': False, 'membres_modification': False, 'membres_suppression': False,
+        'finance_lecture': True, 'finance_ajout': False, 'finance_modification': False, 'finance_suppression': False, 'finance_validation': False,
+        'synthese_nationale': True,
+    },
+    'secretariat_national': {
+        'niveau_acces': 'national',
+        'membres_lecture': True, 'membres_ajout': False, 'membres_modification': False, 'membres_suppression': False,
+        'finance_lecture': False, 'finance_ajout': False, 'finance_modification': False, 'finance_suppression': False, 'finance_validation': False,
+        'synthese_nationale': False,
+    },
+    'finance_national': {
+        'niveau_acces': 'national',
+        'membres_lecture': False, 'membres_ajout': False, 'membres_modification': False, 'membres_suppression': False,
+        'finance_lecture': True, 'finance_ajout': False, 'finance_modification': False, 'finance_suppression': False, 'finance_validation': False,
+        'synthese_nationale': True,
+    },
+    'section_lecture': {
+        'niveau_acces': 'section',
+        'membres_lecture': True, 'membres_ajout': False, 'membres_modification': False, 'membres_suppression': False,
+        'finance_lecture': True, 'finance_ajout': False, 'finance_modification': False, 'finance_suppression': False, 'finance_validation': False,
+        'synthese_nationale': True,
+    },
+    'cellule_admin': {
+        'niveau_acces': 'cellule',
+        'membres_lecture': True, 'membres_ajout': True, 'membres_modification': True, 'membres_suppression': True,
+        'finance_lecture': False, 'finance_ajout': False, 'finance_modification': False, 'finance_suppression': False, 'finance_validation': False,
+        'synthese_nationale': False,
+    },
+    'cellule_finance': {
+        'niveau_acces': 'cellule',
+        'membres_lecture': True, 'membres_ajout': False, 'membres_modification': False, 'membres_suppression': False,
+        'finance_lecture': True, 'finance_ajout': True, 'finance_modification': True, 'finance_suppression': True, 'finance_validation': True,
+        'synthese_nationale': False,
+    },
+    'cellule_president': {
+        'niveau_acces': 'cellule',
+        'membres_lecture': True, 'membres_ajout': False, 'membres_modification': False, 'membres_suppression': False,
+        'finance_lecture': True, 'finance_ajout': False, 'finance_modification': False, 'finance_suppression': False, 'finance_validation': False,
+        'synthese_nationale': False,
+    },
+    'membre': {
+        'niveau_acces': '',
+        'membres_lecture': False, 'membres_ajout': False, 'membres_modification': False, 'membres_suppression': False,
+        'finance_lecture': False, 'finance_ajout': False, 'finance_modification': False, 'finance_suppression': False, 'finance_validation': False,
+        'synthese_nationale': False,
+    },
+}
 
-# Séparation des tâches (principe de l'audit) : chaque rôle ne voit/écrit que la
-# rubrique qui lui est confiée, même à niveau hiérarchique égal.
-MEMBERS_READ_ROLES = {
-    'national_lecture', 'secretariat_national', 'section_lecture',
-    'cellule_admin', 'cellule_finance', 'cellule_president',
-}
-MEMBERS_WRITE_ROLES = {'cellule_admin'}
-FINANCE_READ_ROLES = {
-    'national_lecture', 'finance_national', 'section_lecture',
-    'cellule_finance', 'cellule_president',
-}
-FINANCE_WRITE_ROLES = {'cellule_finance'}
+PERMISSION_FIELDS = [
+    'niveau_acces',
+    'membres_lecture', 'membres_ajout', 'membres_modification', 'membres_suppression',
+    'finance_lecture', 'finance_ajout', 'finance_modification', 'finance_suppression', 'finance_validation',
+    'synthese_nationale',
+]
+
+
+def apply_role_preset(user, role):
+    """Applique le préréglage du rôle choisi sur l'instance (ne sauvegarde pas —
+    à l'appelant de faire user.save() avec les bons update_fields)."""
+    preset = ROLE_PRESETS.get(role)
+    if preset is None:
+        return
+    for field, value in preset.items():
+        setattr(user, field, value)
 
 
 class IsAdminRoleOrStaff(IsAdminUser):
@@ -40,38 +95,35 @@ def is_super_admin(user):
 
 def user_scope(user):
     """
-    Renvoie le périmètre d'accès d'un utilisateur selon la matrice de la phase pilote :
-    - 'national' : voit toutes les cellules pilotes (lecture seule)
-    - 'section'  : voit les cellules pilotes de sa propre section (lecture seule)
-    - 'cellule'  : voit uniquement sa propre cellule (dahira) — écriture ou lecture
-                   selon le rôle précis
-    - None       : pas de périmètre admin (simple membre) ou super admin (illimité)
+    Renvoie le périmètre d'accès d'un utilisateur d'après son niveau_acces
+    individuel :
+    - 'all'      : Super Admin, illimité
+    - 'national' : cellules pilotes (toutes)
+    - 'section'  : cellules pilotes de sa propre section (user.section)
+    - 'cellule'  : sa propre cellule (user.dahira)
+    - None       : aucun périmètre (pas de droit admin sur rien)
     """
     if not user or not user.is_authenticated:
         return {'level': None}
-    role = getattr(user, 'role', None)
-    if role == 'admin':
+    if is_super_admin(user):
         return {'level': 'all'}
-    if role in NATIONAL_READONLY_ROLES:
+    niveau = getattr(user, 'niveau_acces', '') or ''
+    if niveau == 'national':
         return {'level': 'national'}
-    if role == 'section_lecture':
+    if niveau == 'section':
         return {'level': 'section', 'section_id': user.section_id}
-    if role in CELLULE_ROLES:
+    if niveau == 'cellule':
         return {'level': 'cellule', 'dahira_id': user.dahira_id}
     return {'level': None}
 
 
-def _can_access(user, read_roles, write_roles, dahira_id, section_id, write=False):
-    if is_super_admin(user):
-        return True
-    role = getattr(user, 'role', None)
-    if not role:
-        return False
-    allowed_roles = write_roles if write else read_roles
-    if role not in allowed_roles:
-        return False
+def _check_scope(user, dahira_id, section_id):
+    """Le champ individuel (ex. membres_lecture) est déjà vérifié par l'appelant —
+    ici on vérifie seulement que la cible demandée est dans le périmètre du user."""
     scope = user_scope(user)
     level = scope['level']
+    if level == 'all':
+        return True
     if level == 'national':
         return True  # filtré aux cellules pilotes par le queryset appelant
     if level == 'section':
@@ -81,39 +133,58 @@ def _can_access(user, read_roles, write_roles, dahira_id, section_id, write=Fals
     return False
 
 
+def has_perm(user, field, dahira_id=None, section_id=None):
+    """Vérifie un droit individuel précis (ex. 'finance_validation'), scopé à une
+    cellule/section cible. Super Admin : toujours vrai."""
+    if is_super_admin(user):
+        return True
+    if not getattr(user, field, False):
+        return False
+    return _check_scope(user, dahira_id, section_id)
+
+
+def has_perm_anywhere(user, field):
+    """Capacité générale (sans cible précise) : ce champ est-il activé, quelque
+    part dans le périmètre du user ? À utiliser pour les vues récapitulatives
+    (tableau de bord, menu) — pas pour un objet précis (préférer has_perm())."""
+    return is_super_admin(user) or bool(getattr(user, field, False))
+
+
+# --- Alias historiques (compat des vues existantes) --------------------------
+
 def can_view_members(user, dahira_id=None, section_id=None):
-    """Lecture des membres : matrice « qui voit quoi » côté effectifs (séparation
-    des tâches — un rôle finance ne voit pas la liste des membres, par ex.)."""
-    return _can_access(user, MEMBERS_READ_ROLES, MEMBERS_WRITE_ROLES, dahira_id, section_id)
+    return has_perm(user, 'membres_lecture', dahira_id, section_id)
 
 
 def can_write_members(user, dahira_id=None):
-    """Écriture (ajout/modif/suppression) des membres : réservé au Secrétaire
-    Administratif de Cellule (sur sa propre cellule) et au Super Admin."""
-    return _can_access(user, MEMBERS_READ_ROLES, MEMBERS_WRITE_ROLES, dahira_id, None, write=True)
+    """Vrai si le user peut ajouter, modifier OU supprimer des membres dans ce
+    périmètre (utilisé pour l'accès en écriture générique à la fiche membre)."""
+    if is_super_admin(user):
+        return True
+    if not (user.membres_ajout or user.membres_modification or user.membres_suppression):
+        return False
+    return _check_scope(user, dahira_id, None)
 
 
 def can_view_finance(user, dahira_id=None, section_id=None):
-    """Lecture des flux financiers : séparation des tâches — un rôle membres (ex.
-    Secrétaire Administratif de Cellule) ne voit pas les cotisations/dépenses."""
-    return _can_access(user, FINANCE_READ_ROLES, FINANCE_WRITE_ROLES, dahira_id, section_id)
+    return has_perm(user, 'finance_lecture', dahira_id, section_id)
 
 
 def can_write_finance(user, dahira_id=None):
-    """Écriture (validation paiements, dépenses, hadiya) : réservé au Secrétaire aux
-    Finances de Cellule (sur sa propre cellule) et au Super Admin."""
-    return _can_access(user, FINANCE_READ_ROLES, FINANCE_WRITE_ROLES, dahira_id, None, write=True)
+    """Vrai si le user peut ajouter, modifier, supprimer OU valider des opérations
+    financières dans ce périmètre."""
+    if is_super_admin(user):
+        return True
+    if not (user.finance_ajout or user.finance_modification or user.finance_suppression or user.finance_validation):
+        return False
+    return _check_scope(user, dahira_id, None)
 
 
 def scope_filter(qs, user, dahira_field, section_field):
     """Filtre un queryset selon le périmètre hiérarchique du user (à appliquer après
-    avoir vérifié can_view_members/can_view_finance). `dahira_field`/`section_field`
-    sont des chemins ORM vers les FK Dahira/Section (ex. 'dahira' sur CustomUser,
+    avoir vérifié le droit individuel concerné). `dahira_field`/`section_field` sont
+    des chemins ORM vers les FK Dahira/Section (ex. 'dahira' sur CustomUser,
     'membre__dahira' sur CotisationMensuelle) — sans suffixe '_id'.
-    - Super Admin : queryset inchangé.
-    - national     : limité aux cellules pilotes (est_pilote=True).
-    - section      : limité à sa section, cellules pilotes uniquement.
-    - cellule      : limité à sa propre cellule (dahira).
     """
     if is_super_admin(user):
         return qs
@@ -133,16 +204,11 @@ def scope_filter(qs, user, dahira_field, section_field):
 
 
 def has_members_visibility(user):
-    """Capacité générale (indépendante d'une cible précise) : ce rôle a-t-il *une*
-    visibilité sur des membres, quelque part dans son périmètre ? À utiliser pour les
-    vues récapitulatives (tableau de bord) — pas pour un objet précis, où
-    can_view_members(user, dahira_id, section_id) reste la bonne fonction."""
-    return is_super_admin(user) or getattr(user, 'role', None) in MEMBERS_READ_ROLES
+    return has_perm_anywhere(user, 'membres_lecture')
 
 
 def has_finance_visibility(user):
-    """Équivalent finance de has_members_visibility()."""
-    return is_super_admin(user) or getattr(user, 'role', None) in FINANCE_READ_ROLES
+    return has_perm_anywhere(user, 'finance_lecture')
 
 
 def permissions_summary(user):
@@ -150,18 +216,35 @@ def permissions_summary(user):
     dupliquer la logique de scope/séparation des tâches côté client."""
     scope = user_scope(user)
     super_admin = is_super_admin(user)
-    role = getattr(user, 'role', None)
+
+    def flag(field):
+        return super_admin or bool(getattr(user, field, False))
+
     return {
         'is_super_admin': super_admin,
         'scope_level': scope['level'],
         'scope_section_id': scope.get('section_id'),
         'scope_dahira_id': scope.get('dahira_id'),
-        'can_view_members': has_members_visibility(user),
-        'can_manage_members': super_admin or role in MEMBERS_WRITE_ROLES,
-        'can_view_finance': has_finance_visibility(user),
-        'can_manage_finance': super_admin or role in FINANCE_WRITE_ROLES,
+        'niveau_acces': 'national' if scope['level'] == 'all' else (getattr(user, 'niveau_acces', '') or ''),
+        # Détail par action (pour une UI fine si besoin)
+        'membres_lecture': flag('membres_lecture'),
+        'membres_ajout': flag('membres_ajout'),
+        'membres_modification': flag('membres_modification'),
+        'membres_suppression': flag('membres_suppression'),
+        'finance_lecture': flag('finance_lecture'),
+        'finance_ajout': flag('finance_ajout'),
+        'finance_modification': flag('finance_modification'),
+        'finance_suppression': flag('finance_suppression'),
+        'finance_validation': flag('finance_validation'),
+        'synthese_nationale': flag('synthese_nationale'),
+        # Agrégats (compat composants existants : un menu/bouton générique n'a pas
+        # besoin de savoir laquelle des 4 actions précises est en jeu)
+        'can_view_members': flag('membres_lecture'),
+        'can_manage_members': super_admin or user.membres_ajout or user.membres_modification or user.membres_suppression,
+        'can_view_finance': flag('finance_lecture'),
+        'can_manage_finance': super_admin or user.finance_ajout or user.finance_modification or user.finance_suppression or user.finance_validation,
         'can_manage_cellules': super_admin,
-        'can_view_national_synthese': super_admin or scope['level'] in ('national', 'section'),
+        'can_view_national_synthese': flag('synthese_nationale'),
     }
 
 
@@ -171,23 +254,20 @@ def has_admin_access(user, rubrique):
     prioritaire de la phase pilote (culturelle, conservatoire, scientifique, sociale,
     communication, organisation). Ces modules sont masqués du menu pendant le pilote ;
     seul le Super Admin peut y écrire (plus de rôles spécialisés par rubrique).
-
-    'membres' et 'finance' utilisent désormais can_view_members/can_write_members et
-    can_view_finance/can_write_finance ci-dessus, scopés à la cellule/section/national.
     """
     return is_super_admin(user)
 
 
 class CanViewMembers(BasePermission):
-    """Autorise la lecture de la liste des membres : Super Admin ou tout rôle
-    scopé ayant la visibilité effectifs (le périmètre précis est appliqué dans
-    get_queryset via scope_filter)."""
+    """Autorise la lecture de la liste des membres : Super Admin ou tout compte
+    ayant membres_lecture (le périmètre précis est appliqué dans get_queryset via
+    scope_filter)."""
 
     def has_permission(self, request, view):
         user = request.user
         if not user or not user.is_authenticated:
             return False
-        return is_super_admin(user) or getattr(user, 'role', None) in MEMBERS_READ_ROLES
+        return is_super_admin(user) or bool(getattr(user, 'membres_lecture', False))
 
 
 class IsSuperAdminRubrique(BasePermission):
@@ -212,14 +292,18 @@ class IsSuperAdminCulturelle(BasePermission):
 
 
 class IsFinanceWriteAccess(BasePermission):
-    """Permission pour les actions d'écriture finance : Super Admin ou Secrétaire aux
-    Finances de Cellule (le scope précis sur la cellule est vérifié dans la vue)."""
+    """Permission générique pour les actions d'écriture finance (le détail
+    ajout/modification/suppression/validation est vérifié dans la vue via
+    has_perm()) : Super Admin ou tout compte ayant au moins un droit d'écriture
+    finance."""
 
     def has_permission(self, request, view):
         user = request.user
         if not user or not user.is_authenticated:
             return False
-        return is_super_admin(user) or getattr(user, 'role', None) == 'cellule_finance'
+        return is_super_admin(user) or any([
+            user.finance_ajout, user.finance_modification, user.finance_suppression, user.finance_validation,
+        ])
 
 
 class IsSuperAdminSociale(BasePermission):
