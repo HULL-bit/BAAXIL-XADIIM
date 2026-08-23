@@ -151,26 +151,6 @@ export default function DashboardAdmin() {
         )}
       </Grid>
 
-      <Grid container spacing={3} sx={{ mt: 0.5 }}>
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard title="Événements" value={stats?.evenements ?? 0} icon={<Event />} color={COLORS.vert} delay={220} />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard
-            title="Messages non lus"
-            value={unreadMessages > 0 ? unreadMessages : 'Aucun'}
-            icon={<Badge badgeContent={unreadMessages} color="error" invisible={unreadMessages === 0}><Message /></Badge>}
-            color={COLORS.or}
-            delay={260}
-          />
-        </Grid>
-        {canViewFinance && (
-          <Grid item xs={12} sm={6} md={3}>
-            <StatCard title="Taux de recouvrement global" value={`${Math.round((stats?.taux_paiement_cotisations_global ?? 0) * 10) / 10}%`} icon={<TrendingUp />} color={COLORS.vertClair} delay={300} />
-          </Grid>
-        )}
-      </Grid>
-
       {canViewMembers && (
         <>
           <Typography variant="h6" sx={{ color: COLORS.vert, fontFamily: '"Cormorant Garamond", serif', fontWeight: 600, mt: 4, mb: 2 }}>
