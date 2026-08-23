@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Box,
   Typography,
@@ -106,14 +106,28 @@ const initialFilters = {
   dahira: '',
 }
 
+// Champs de filtre persistés dans l'URL (?search=...&sexe=...) pour que le retour
+// depuis la page de détail d'un membre (bouton Retour ou navigateur) retrouve
+// exactement la même recherche, sans tout recharger ni refiltrer.
+const FILTER_KEYS = Object.keys(initialFilters)
+
+function filtersFromSearchParams(sp) {
+  const f = { ...initialFilters }
+  FILTER_KEYS.forEach((k) => { if (sp.get(k)) f[k] = sp.get(k) })
+  return f
+}
+
 export default function GestionMembres() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { isSuperAdmin, permissions } = useAuth()
   const canManage = !!permissions?.can_manage_members
   const [list, setList] = useState([])
   const [count, setCount] = useState(0)
-  const [page, setPage] = useState(1)
-  const [hasSearched, setHasSearched] = useState(false)
+  const [page, setPage] = useState(() => Number(searchParams.get('page')) || 1)
+  // Si l'URL contient déjà des filtres (retour depuis /admin/membres/:id), on
+  // relance la recherche automatiquement au montage au lieu d'afficher l'état vide.
+  const [hasSearched, setHasSearched] = useState(() => searchParams.toString().length > 0)
   const [totalMembres, setTotalMembres] = useState(null)
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -122,7 +136,7 @@ export default function GestionMembres() {
   const [openForm, setOpenForm] = useState(false)
   const [openDelete, setOpenDelete] = useState(null)
   const [form, setForm] = useState(initialForm)
-  const [filters, setFilters] = useState(initialFilters)
+  const [filters, setFilters] = useState(() => filtersFromSearchParams(searchParams))
   const [saving, setSaving] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [fieldErrors, setFieldErrors] = useState({})
@@ -133,16 +147,16 @@ export default function GestionMembres() {
   const [sousSections, setSousSections] = useState([])
   const [dahiras, setDahiras] = useState([])
 
-  const buildParams = (targetPage) => {
+  const buildParams = (targetPage, f = filters) => {
     const params = { page: targetPage, page_size: PAGE_SIZE }
-    if (filters.search) params.search = filters.search
-    if (filters.sexe) params.sexe = filters.sexe
-    if (filters.categorie) params.categorie = filters.categorie
-    if (filters.profession) params.profession__icontains = filters.profession
-    if (filters.regroupement) params.regroupement = filters.regroupement
-    if (filters.groupe_sanguin) params.groupe_sanguin = filters.groupe_sanguin
-    if (filters.section) params.section = filters.section
-    if (filters.dahira) params.dahira = filters.dahira
+    if (f.search) params.search = f.search
+    if (f.sexe) params.sexe = f.sexe
+    if (f.categorie) params.categorie = f.categorie
+    if (f.profession) params.profession__icontains = f.profession
+    if (f.regroupement) params.regroupement = f.regroupement
+    if (f.groupe_sanguin) params.groupe_sanguin = f.groupe_sanguin
+    if (f.section) params.section = f.section
+    if (f.dahira) params.dahira = f.dahira
     return params
   }
 
@@ -200,11 +214,18 @@ export default function GestionMembres() {
     }
   }
 
-  const runSearch = async (targetPage = 1) => {
+  const runSearch = async (targetPage = 1, filtersOverride = filters) => {
     setLoading(true)
     setHasSearched(true)
+    // Reflète la recherche dans l'URL (remplace, pas de nouvelle entrée d'historique
+    // par filtre) pour que le retour depuis le détail d'un membre restaure exactement
+    // cette recherche au lieu de tout recharger.
+    const nextParams = {}
+    FILTER_KEYS.forEach((k) => { if (filtersOverride[k]) nextParams[k] = filtersOverride[k] })
+    if (targetPage > 1) nextParams.page = String(targetPage)
+    setSearchParams(nextParams, { replace: true })
     try {
-      const { data } = await api.get('/auth/users/', { params: buildParams(targetPage) })
+      const { data } = await api.get('/auth/users/', { params: buildParams(targetPage, filtersOverride) })
       setList(data.results || data || [])
       setCount(data.count ?? (Array.isArray(data) ? data.length : 0))
       setPage(targetPage)
@@ -223,7 +244,15 @@ export default function GestionMembres() {
     setList([])
     setCount(0)
     setPage(1)
+    setSearchParams({}, { replace: true })
   }
+
+  // Restaure automatiquement la recherche si l'URL contenait déjà des filtres au
+  // montage (ex. retour depuis /admin/membres/:id via le bouton "Retour").
+  useEffect(() => {
+    if (hasSearched) runSearch(page, filters)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Récupère uniquement le total de membres (page_size=1) pour l'affichage initial,
   // sans jamais charger la liste complète des 899 membres.

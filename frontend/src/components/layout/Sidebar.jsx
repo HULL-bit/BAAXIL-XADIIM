@@ -30,6 +30,8 @@ import {
   Groups as OrgIcon,
   People as PeopleIcon,
   Person as PersonIcon,
+  AdminPanelSettings as RolesIcon,
+  Security as LogsIcon,
 } from '@mui/icons-material'
 import { Link as RouterLink } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
@@ -66,12 +68,15 @@ function buildSectionsGestion(permissions, isSuperAdmin) {
     },
   ]
 
-  if (permissions.can_view_members) {
-    const items = [{ label: 'Gestion des membres', path: '/admin/membres', icon: <PeopleIcon /> }]
-    if (isSuperAdmin) items.push({ label: 'Admin organisation', path: '/organisation/admin', icon: <OrgIcon /> })
+  if (permissions.can_view_members || isSuperAdmin) {
+    const items = []
+    if (permissions.can_view_members) items.push({ label: 'Gestion des membres', path: '/admin/membres', icon: <PeopleIcon /> })
+    if (isSuperAdmin) {
+      items.push({ label: 'Rôles & Permissions', path: '/admin/roles', icon: <RolesIcon /> })
+      items.push({ label: 'Admin organisation', path: '/organisation/admin', icon: <OrgIcon /> })
+      items.push({ label: 'Logs système', path: '/admin/logs', icon: <LogsIcon /> })
+    }
     sections.push({ title: 'Projet gestion membres', items })
-  } else if (isSuperAdmin) {
-    sections.push({ title: 'Projet gestion membres', items: [{ label: 'Admin organisation', path: '/organisation/admin', icon: <OrgIcon /> }] })
   }
 
   sections.push({ title: 'Projet gestion informations', items: [{ label: 'Événements', path: '/informations/evenements', icon: <EventIcon /> }, { label: 'News', path: '/informations/news', icon: <NewsIcon /> }] })

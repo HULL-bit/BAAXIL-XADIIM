@@ -176,6 +176,48 @@ class HistoriqueConnexion(models.Model):
         return f"{self.user.username} - {self.date_connexion}"
 
 
+class JournalAction(models.Model):
+    """
+    Journal des actions sensibles (traçabilité/sécurité) : qui a fait quoi, quand,
+    depuis quelle IP. Complète HistoriqueConnexion (qui trace les connexions) pour
+    les actions elles-mêmes — changement de rôle, création/suppression de membre,
+    validation de paiement, import Excel, gel/dégel d'une cellule pilote…
+    """
+
+    ACTION_CHOICES = [
+        ('login', 'Connexion'),
+        ('login_echec', 'Échec de connexion'),
+        ('role_change', "Changement de rôle"),
+        ('membre_create', "Création d'un membre"),
+        ('membre_update', "Modification d'un membre"),
+        ('membre_delete', "Suppression d'un membre"),
+        ('import_excel', 'Import Excel de membres'),
+        ('paiement_valide', 'Validation de paiement(s)'),
+        ('assignation_annuelle', "Création d'une assignation annuelle"),
+        ('dahira_pilote', 'Statut "cellule pilote" modifié'),
+    ]
+
+    acteur = models.ForeignKey(
+        CustomUser, on_delete=models.SET_NULL, null=True, blank=True, related_name='actions_effectuees'
+    )
+    action = models.CharField(max_length=30, choices=ACTION_CHOICES)
+    description = models.TextField(blank=True)
+    cible_type = models.CharField(max_length=50, blank=True, help_text="Ex: membre, cotisation, dahira")
+    cible_id = models.IntegerField(null=True, blank=True)
+    adresse_ip = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True)
+    date_action = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Journal des Actions'
+        verbose_name_plural = 'Journal des Actions'
+        ordering = ['-date_action']
+
+    def __str__(self):
+        who = self.acteur.username if self.acteur else 'système'
+        return f"{who} - {self.get_action_display()} - {self.date_action}"
+
+
 class Badge(models.Model):
     CATEGORIE_CHOICES = [
         ('contribution', 'Contribution'),

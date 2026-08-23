@@ -16,4 +16,6 @@ urlpatterns = [
     path('admin/statistiques/', views.stats_admin),
     path('me/badges/', views.mes_badges),
     path('export-membres/', export_membres_view),
+    path('journal/', views.JournalActionList.as_view()),
+    path('connexions/', views.HistoriqueConnexionList.as_view()),
 ]

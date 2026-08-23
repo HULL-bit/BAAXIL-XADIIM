@@ -11,8 +11,11 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 
-from .serializers import UserSerializer, UserMinimalSerializer, UserCreateSerializer, UserMeSerializer, BadgeSerializer, AttributionBadgeSerializer
-from .models import AttributionBadge
+from .serializers import (
+    UserSerializer, UserMinimalSerializer, UserCreateSerializer, UserMeSerializer,
+    BadgeSerializer, AttributionBadgeSerializer, HistoriqueConnexionSerializer, JournalActionSerializer,
+)
+from .models import AttributionBadge, HistoriqueConnexion, JournalAction
 from .permissions import (
     is_super_admin,
     can_view_members,
@@ -20,15 +23,30 @@ from .permissions import (
     permissions_summary,
     scope_filter,
     CanViewMembers,
+    IsAdminRoleOrStaff,
 )
+from .audit import log_connexion, log_action
 
 User = get_user_model()
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
-        data = super().validate(attrs)
-        user_data = dict(UserMeSerializer(self.user, context={'request': self.context.get('request')}).data)
+        request = self.context.get('request')
+        username = attrs.get(self.username_field)
+        try:
+            data = super().validate(attrs)
+        except Exception:
+            # On ne journalise l'échec que si le nom d'utilisateur correspond à un
+            # compte existant (mot de passe erroné) — un nom d'utilisateur inconnu
+            # n'a pas de FK valide et n'est pas exploitable pour un audit ciblé.
+            if request and username:
+                candidate = User.objects.filter(**{self.username_field: username}).first()
+                if candidate:
+                    log_connexion(request, candidate, succes=False)
+            raise
+        log_connexion(request, self.user, succes=True)
+        user_data = dict(UserMeSerializer(self.user, context={'request': request}).data)
         user_data['permissions'] = permissions_summary(self.user)
         data['user'] = user_data
         return data
@@ -64,6 +82,12 @@ def register(request):
     serializer = UserCreateSerializer(data=data)
     if serializer.is_valid():
         user = serializer.save()
+        if requester and requester.is_authenticated:
+            log_action(
+                request, requester, 'membre_create',
+                description=f"{user.get_full_name() or user.username} (rôle {user.role})",
+                cible_type='membre', cible_id=user.id,
+            )
         return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -145,7 +169,7 @@ class UserList(generics.ListAPIView):
     permission_classes = [IsAuthenticated, CanViewMembers]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = {
-        'role': ['exact'],
+        'role': ['exact', 'in'],
         'est_actif': ['exact'],
         'sexe': ['exact'],
         'categorie': ['exact'],
@@ -229,21 +253,43 @@ class UserDetail(generics.RetrieveUpdateDestroyAPIView):
             data.pop(field, None)
         return data
 
-    def update(self, request, *args, **kwargs):
+    def _update_and_log(self, request, partial):
         instance = self.get_object()
-        partial = kwargs.pop('partial', False)
-        serializer = self.get_serializer(instance, data=self._safe_data(request, instance), partial=partial)
+        old_role = instance.role
+        old_name = instance.get_full_name() or instance.username
+        data = self._safe_data(request, instance)
+        serializer = self.get_serializer(instance, data=data, partial=partial)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
+        instance.refresh_from_db()
+        if instance.pk != request.user.pk:
+            if 'role' in data and instance.role != old_role:
+                log_action(
+                    request, request.user, 'role_change',
+                    description=f"{old_name} : {old_role} → {instance.role}",
+                    cible_type='membre', cible_id=instance.id,
+                )
+            else:
+                log_action(
+                    request, request.user, 'membre_update',
+                    description=old_name, cible_type='membre', cible_id=instance.id,
+                )
         return Response(serializer.data)
+
+    def update(self, request, *args, **kwargs):
+        return self._update_and_log(request, kwargs.pop('partial', False))
 
     def partial_update(self, request, *args, **kwargs):
         """Override pour s'assurer que la catégorie est bien sauvegardée"""
+        return self._update_and_log(request, True)
+
+    def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        serializer = self.get_serializer(instance, data=self._safe_data(request, instance), partial=True)
-        serializer.is_valid(raise_exception=True)
-        self.perform_update(serializer)
-        return Response(serializer.data)
+        name = instance.get_full_name() or instance.username
+        instance_id = instance.id
+        response = super().destroy(request, *args, **kwargs)
+        log_action(request, request.user, 'membre_delete', description=name, cible_type='membre', cible_id=instance_id)
+        return response
 
 
 @api_view(['GET'])
@@ -495,9 +541,56 @@ def import_membres_excel(request):
 
     User.objects.bulk_create(created, batch_size=200)
 
+    log_action(
+        request, user, 'import_excel',
+        description=f"{len(created)} créé(s), {already_existing} déjà existant(s), {len(errors)} ligne(s) ignorée(s) — fichier « {uploaded.name} »",
+    )
+
     return Response({
         'created': len(created),
         'already_existing': already_existing,
         'errors': errors[:50],
         'errors_total': len(errors),
     })
+
+
+class HistoriqueConnexionList(generics.ListAPIView):
+    """
+    Journal des connexions (page "Logs système", Super Admin uniquement) : qui s'est
+    connecté, quand, depuis quelle IP/navigateur/OS, succès ou échec.
+    Filtres : ?user=<id>&succes=true|false&adresse_ip=&date_connexion__gte=&date_connexion__lte=
+    """
+    queryset = HistoriqueConnexion.objects.select_related('user').all()
+    serializer_class = HistoriqueConnexionSerializer
+    permission_classes = [IsAuthenticated, IsAdminRoleOrStaff]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = {
+        'user': ['exact'],
+        'succes': ['exact'],
+        'adresse_ip': ['exact', 'icontains'],
+        'navigateur': ['exact'],
+        'systeme_exploitation': ['exact'],
+        'date_connexion': ['gte', 'lte'],
+    }
+    search_fields = ['user__first_name', 'user__last_name', 'user__username', 'adresse_ip']
+
+
+class JournalActionList(generics.ListAPIView):
+    """
+    Journal des actions sensibles (page "Logs système", Super Admin uniquement) :
+    changements de rôle, création/modification/suppression de membre, validation de
+    paiements, import Excel, gel/dégel d'une cellule pilote…
+    Filtres : ?acteur=<id>&action=role_change&date_action__gte=&date_action__lte=
+    """
+    queryset = JournalAction.objects.select_related('acteur').all()
+    serializer_class = JournalActionSerializer
+    permission_classes = [IsAuthenticated, IsAdminRoleOrStaff]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = {
+        'acteur': ['exact'],
+        'action': ['exact'],
+        'cible_type': ['exact'],
+        'adresse_ip': ['exact', 'icontains'],
+        'date_action': ['gte', 'lte'],
+    }
+    search_fields = ['acteur__first_name', 'acteur__last_name', 'acteur__username', 'description']

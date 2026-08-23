@@ -128,6 +128,23 @@ img {
   }
 }
 
+/* Entrée en douceur des cartes "hero" et de la bande de bienvenue des tableaux
+   de bord (DashboardAdmin, DashboardMembre, WelcomeBand). */
+@keyframes dashboardHeroEnter {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.dashboard-hero-enter {
+  animation: dashboardHeroEnter 0.5s ease both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-hero-enter {
+    animation: none !important;
+  }
+}
+
 /* Révélation "cinématique" au scroll (page d'accueil publique) : chaque section
    part légèrement en retrait puis vient à sa place quand elle entre dans le
    viewport (IntersectionObserver côté JS ajoute .reveal-in). */

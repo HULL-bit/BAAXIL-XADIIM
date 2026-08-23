@@ -32,6 +32,8 @@ const Cours = lazy(() => import('./components/scientifique/Cours'))
 const MonProfil = lazy(() => import('./components/comptes/MonProfil'))
 const GestionMembres = lazy(() => import('./components/comptes/GestionMembres'))
 const MembreDetail = lazy(() => import('./components/comptes/MembreDetail'))
+const GestionRoles = lazy(() => import('./components/comptes/GestionRoles'))
+const LogsSysteme = lazy(() => import('./components/comptes/LogsSysteme'))
 
 function ProtectedRoute({ children, roles, permission, requireGestionRole }) {
   const { user, loading, permissions, isGestionRole } = useAuth()
@@ -90,6 +92,8 @@ function AppRoutes() {
         <Route path="comptes/profil" element={<MonProfil />} />
         <Route path="admin/membres" element={<ProtectedRoute permission="can_view_members"><GestionMembres /></ProtectedRoute>} />
         <Route path="admin/membres/:id" element={<ProtectedRoute permission="can_view_members"><MembreDetail /></ProtectedRoute>} />
+        <Route path="admin/roles" element={<ProtectedRoute roles={['admin']}><GestionRoles /></ProtectedRoute>} />
+        <Route path="admin/logs" element={<ProtectedRoute roles={['admin']}><LogsSysteme /></ProtectedRoute>} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

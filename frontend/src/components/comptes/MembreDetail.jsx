@@ -77,7 +77,7 @@ export default function MembreDetail() {
   if (error) {
     return (
       <Box>
-        <Button startIcon={<ArrowBack />} onClick={() => navigate('/admin/membres')} sx={{ mb: 2 }}>Retour</Button>
+        <Button startIcon={<ArrowBack />} onClick={() => navigate(-1)} sx={{ mb: 2 }}>Retour</Button>
         <Typography color="error">{error}</Typography>
       </Box>
     )
@@ -86,7 +86,7 @@ export default function MembreDetail() {
 
   return (
     <Box sx={{ animation: 'fadeIn 0.4s ease' }}>
-      <Button startIcon={<ArrowBack />} onClick={() => navigate('/admin/membres')} sx={{ mb: 2 }}>
+      <Button startIcon={<ArrowBack />} onClick={() => navigate(-1)} sx={{ mb: 2 }}>
         Retour à Gestion des membres
       </Button>
 

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import ProfilComplementaire, Badge, AttributionBadge
+from .models import ProfilComplementaire, Badge, AttributionBadge, HistoriqueConnexion, JournalAction
 
 User = get_user_model()
 
@@ -202,3 +202,29 @@ class AttributionBadgeSerializer(serializers.ModelSerializer):
     class Meta:
         model = AttributionBadge
         fields = ['id', 'badge', 'date_obtention', 'raison']
+
+
+class HistoriqueConnexionSerializer(serializers.ModelSerializer):
+    user_nom = serializers.CharField(source='user.get_full_name', read_only=True)
+    username = serializers.CharField(source='user.username', read_only=True)
+
+    class Meta:
+        model = HistoriqueConnexion
+        fields = [
+            'id', 'user', 'user_nom', 'username', 'date_connexion', 'adresse_ip',
+            'user_agent', 'navigateur', 'systeme_exploitation', 'appareil',
+            'localisation', 'succes',
+        ]
+
+
+class JournalActionSerializer(serializers.ModelSerializer):
+    acteur_nom = serializers.CharField(source='acteur.get_full_name', read_only=True, default='')
+    acteur_username = serializers.CharField(source='acteur.username', read_only=True, default='')
+    action_display = serializers.CharField(source='get_action_display', read_only=True)
+
+    class Meta:
+        model = JournalAction
+        fields = [
+            'id', 'acteur', 'acteur_nom', 'acteur_username', 'action', 'action_display',
+            'description', 'cible_type', 'cible_id', 'adresse_ip', 'user_agent', 'date_action',
+        ]

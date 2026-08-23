@@ -253,6 +253,18 @@ class DahiraViewSet(viewsets.ModelViewSet):
             return [AllowAny()]
         return [IsAuthenticated()]
 
+    def perform_update(self, serializer):
+        from apps.accounts.audit import log_action
+
+        old_pilote = serializer.instance.est_pilote
+        instance = serializer.save()
+        if instance.est_pilote != old_pilote:
+            log_action(
+                self.request, self.request.user, 'dahira_pilote',
+                description=f"{instance.nom} : {'activé' if instance.est_pilote else 'désactivé'}",
+                cible_type='dahira', cible_id=instance.id,
+            )
+
 
 class FamilleViewSet(viewsets.ModelViewSet):
     queryset = Famille.objects.all().order_by('nom')

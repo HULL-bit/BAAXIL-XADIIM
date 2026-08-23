@@ -4,6 +4,7 @@ import { Box, Grid, Card, CardContent, Typography, Button, Chip, Badge } from '@
 import { People, AccountBalance, Event, Add, AttachMoney, Message, TrendingUp, Payment, Man, Woman, MenuBook as StudentIcon, Work, RequestQuote } from '@mui/icons-material'
 import { useAuth } from '../../context/AuthContext'
 import api from '../../services/api'
+import WelcomeBand from './WelcomeBand'
 
 const COLORS = {
   vert: '#2DA9E1',
@@ -104,20 +105,10 @@ export default function DashboardAdmin() {
 
   return (
     <Box sx={{ animation: 'fadeIn 0.5s ease' }}>
-      <style>{`
-        @keyframes dashboardHeroEnter { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
-        .dashboard-hero-enter { animation: dashboardHeroEnter 0.5s ease both; }
-      `}</style>
-      <Box display="flex" flexWrap="wrap" justifyContent="space-between" alignItems="flex-start" gap={2} mb={3}>
-        <Box>
-          <Typography variant="h4" sx={{ color: COLORS.vert, fontFamily: '"Dancing Script", "Cormorant Garamond", serif', fontWeight: 700 }}>
-            Bienvenue, {formatUserName()}
-          </Typography>
-          <Typography variant="body1" sx={{ color: COLORS.noir, mt: 0.5 }}>
-            {user?.role_display || 'Tableau de bord'} — Vue d'ensemble de la plateforme Ahibahil Khadim
-          </Typography>
-        </Box>
-        {isSuperAdmin && (
+      <WelcomeBand name={formatUserName()} roleLabel={`${user?.role_display || 'Tableau de bord'} — Ahibahil Khadim`} />
+
+      {isSuperAdmin && (
+        <Box display="flex" justifyContent="flex-end" mb={3} mt={-1.5}>
           <Button
             variant="outlined"
             startIcon={<Event />}
@@ -126,8 +117,8 @@ export default function DashboardAdmin() {
           >
             Créer Événement
           </Button>
-        )}
-      </Box>
+        </Box>
+      )}
 
       {/* Indicateurs prioritaires — membres et finance (cœur de la phase pilote) */}
       <Grid container spacing={3}>

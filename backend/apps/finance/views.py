@@ -263,6 +263,8 @@ class CotisationMensuelleViewSet(viewsets.ModelViewSet):
         # de CotisationMensuelle.objects.all(), pour ne jamais valider hors périmètre.
         qs = self.get_queryset().filter(id__in=ids).exclude(statut='payee')
         updated = qs.update(statut='payee', date_paiement=timezone.now())
+        from apps.accounts.audit import log_action
+        log_action(request, request.user, 'paiement_valide', description=f"{updated} cotisation(s) validée(s) (ids: {ids[:20]})")
         return Response({'valides': updated})
 
     @action(detail=False, methods=['post'], permission_classes=[IsFinanceWriteAccess])
@@ -389,6 +391,13 @@ class CotisationMensuelleViewSet(viewsets.ModelViewSet):
                 statut='en_attente',
             ))
         CotisationMensuelle.objects.bulk_create(to_create)
+
+        from apps.accounts.audit import log_action
+        log_action(
+            request, request.user, 'assignation_annuelle',
+            description=f"Section #{section_id} — {annee} — {montant_total} FCFA / {nb} membre(s)",
+            cible_type='section', cible_id=int(section_id),
+        )
 
         return Response({
             'section': int(section_id),

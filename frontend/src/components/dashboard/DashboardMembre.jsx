@@ -4,6 +4,7 @@ import { Box, Grid, Card, CardContent, Typography, Button, Chip, Badge } from '@
 import { AccountBalance, MenuBook, Event, Message, AttachMoney, TrendingUp, Notifications, Forum, Group, School, Payment } from '@mui/icons-material'
 import { useAuth } from '../../context/AuthContext'
 import api from '../../services/api'
+import WelcomeBand from './WelcomeBand'
 
 const COLORS = {
   vert: '#2DA9E1',
@@ -89,13 +90,8 @@ export default function DashboardMembre() {
   }, [user])
 
   return (
-    <Box>
-      <Typography variant="h4" sx={{ color: COLORS.vert, fontFamily: '"Dancing Script", "Cormorant Garamond", serif', fontWeight: 700, mb: 0.5 }}>
-        Bienvenue, {formatUserName()}
-      </Typography>
-      <Typography variant="body1" sx={{ color: COLORS.noir, mb: 3 }}>
-        Tableau de bord membre — Ahibahil Khadim
-      </Typography>
+    <Box sx={{ animation: 'fadeIn 0.5s ease' }}>
+      <WelcomeBand name={formatUserName()} roleLabel="Tableau de bord membre — Ahibahil Khadim" />
       <Grid container spacing={3}>
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
