@@ -25,7 +25,7 @@ import {
   useMediaQuery,
   useTheme,
 } from '@mui/material'
-import { Send, Add, Groups, Videocam, Call, Close, PersonRemove, PersonAdd, ArrowBack, Tag } from '@mui/icons-material'
+import { Send, Add, Groups, Videocam, Call, Close, PersonRemove, PersonAdd, ArrowBack, Tag, Edit, PhotoCamera } from '@mui/icons-material'
 import api from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import { getMediaUrl } from '../../services/media'
@@ -121,6 +121,13 @@ export default function Canaux() {
   const [managing, setManaging] = useState(false)
 
   const [call, setCall] = useState(null) // { room, mode }
+
+  const [openEdit, setOpenEdit] = useState(false)
+  const [editForm, setEditForm] = useState({ nom: '', description: '' })
+  const [editPhotoFile, setEditPhotoFile] = useState(null)
+  const [editPhotoPreview, setEditPhotoPreview] = useState(null)
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [editError, setEditError] = useState('')
 
   const loadCanaux = useCallback(() => {
     setLoadingCanaux(true)
@@ -226,6 +233,55 @@ export default function Canaux() {
     }
   }
 
+  const handleOpenEdit = () => {
+    if (!selected) return
+    setEditForm({ nom: selected.nom, description: selected.description || '' })
+    setEditPhotoFile(null)
+    setEditPhotoPreview(null)
+    setEditError('')
+    setOpenEdit(true)
+  }
+
+  const handleEditPhotoChange = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      setEditError('Veuillez choisir une image (JPG, PNG).')
+      return
+    }
+    setEditPhotoFile(file)
+    setEditPhotoPreview(URL.createObjectURL(file))
+    setEditError('')
+  }
+
+  const handleSaveEdit = async () => {
+    if (!selected || !editForm.nom.trim()) {
+      setEditError('Le nom du canal est requis.')
+      return
+    }
+    setSavingEdit(true)
+    setEditError('')
+    try {
+      let data
+      if (editPhotoFile) {
+        const fd = new FormData()
+        fd.append('nom', editForm.nom)
+        fd.append('description', editForm.description || '')
+        fd.append('photo', editPhotoFile)
+        ;({ data } = await api.patch(`/communication/canaux/${selected.id}/`, fd))
+      } else {
+        ;({ data } = await api.patch(`/communication/canaux/${selected.id}/`, editForm))
+      }
+      setSelected(data)
+      setCanaux((prev) => prev.map((c) => (c.id === data.id ? data : c)))
+      setOpenEdit(false)
+    } catch (err) {
+      setEditError(err.response?.data?.detail || 'Erreur lors de la modification du canal.')
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
   const startCall = async (mode) => {
     if (!selected) return
     try {
@@ -273,7 +329,7 @@ export default function Canaux() {
               {canaux.map((c) => (
                 <ListItemButton key={c.id} selected={selected?.id === c.id} onClick={() => setSelected(c)}>
                   <ListItemAvatar>
-                    <Avatar sx={{ bgcolor: `${COLORS.vert}25`, color: COLORS.vertFonce }}><Tag /></Avatar>
+                    <Avatar src={getMediaUrl(c.photo)} sx={{ bgcolor: `${COLORS.vert}25`, color: COLORS.vertFonce }}><Tag /></Avatar>
                   </ListItemAvatar>
                   <ListItemText
                     primary={c.nom}
@@ -300,12 +356,20 @@ export default function Canaux() {
                   {isMobile && (
                     <IconButton size="small" onClick={() => setSelected(null)} sx={{ color: 'white' }}><ArrowBack /></IconButton>
                   )}
+                  <Avatar src={getMediaUrl(selected.photo)} sx={{ bgcolor: `${COLORS.or}`, color: COLORS.vertFonce, width: 36, height: 36 }}>
+                    <Tag fontSize="small" />
+                  </Avatar>
                   <Box sx={{ flex: 1, minWidth: 0 }}>
                     <Typography variant="subtitle1" fontWeight={600} noWrap>{selected.nom}</Typography>
                     {selected.description && (
                       <Typography variant="caption" sx={{ opacity: 0.85 }} noWrap>{selected.description}</Typography>
                     )}
                   </Box>
+                  {isSuperAdmin && (
+                    <Tooltip title="Modifier le canal">
+                      <IconButton onClick={handleOpenEdit} sx={{ color: 'white' }}><Edit /></IconButton>
+                    </Tooltip>
+                  )}
                   <Tooltip title="Appel vocal">
                     <IconButton onClick={() => startCall('audio')} sx={{ color: 'white' }}><Call /></IconButton>
                   </Tooltip>
@@ -420,6 +484,48 @@ export default function Canaux() {
           <Button onClick={() => setOpenCreate(false)} disabled={creating}>Annuler</Button>
           <Button variant="contained" onClick={handleCreateCanal} disabled={creating} sx={{ bgcolor: COLORS.vert, '&:hover': { bgcolor: COLORS.vertFonce } }}>
             {creating ? <CircularProgress size={20} color="inherit" /> : 'Créer'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Modification du canal (nom, description, photo) */}
+      <Dialog open={openEdit} onClose={() => setOpenEdit(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Modifier le canal</DialogTitle>
+        <DialogContent>
+          {editError && <Alert severity="error" sx={{ mb: 2 }}>{editError}</Alert>}
+          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+            <Box sx={{ position: 'relative' }}>
+              <Avatar
+                src={editPhotoPreview || getMediaUrl(selected?.photo)}
+                sx={{ width: 84, height: 84, bgcolor: `${COLORS.vert}25`, color: COLORS.vertFonce, fontSize: '2rem' }}
+              >
+                <Tag fontSize="large" />
+              </Avatar>
+              <IconButton
+                component="label"
+                size="small"
+                sx={{ position: 'absolute', bottom: -4, right: -4, bgcolor: COLORS.vert, color: 'white', '&:hover': { bgcolor: COLORS.vertFonce } }}
+              >
+                <PhotoCamera fontSize="small" />
+                <input type="file" accept="image/*" hidden onChange={handleEditPhotoChange} />
+              </IconButton>
+            </Box>
+          </Box>
+          <TextField
+            autoFocus fullWidth margin="dense" label="Nom du canal"
+            value={editForm.nom}
+            onChange={(e) => setEditForm((f) => ({ ...f, nom: e.target.value }))}
+          />
+          <TextField
+            fullWidth margin="dense" label="Description (facultatif)" multiline minRows={2}
+            value={editForm.description}
+            onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenEdit(false)} disabled={savingEdit}>Annuler</Button>
+          <Button variant="contained" onClick={handleSaveEdit} disabled={savingEdit} sx={{ bgcolor: COLORS.vert, '&:hover': { bgcolor: COLORS.vertFonce } }}>
+            {savingEdit ? <CircularProgress size={20} color="inherit" /> : 'Enregistrer'}
           </Button>
         </DialogActions>
       </Dialog>

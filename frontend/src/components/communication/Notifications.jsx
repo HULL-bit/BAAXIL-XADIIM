@@ -50,6 +50,10 @@ export default function Notifications() {
   const [membres, setMembres] = useState([])
   const [destinataires, setDestinataires] = useState([])
   const [loadingMembres, setLoadingMembres] = useState(false)
+  const [cible, setCible] = useState('tous')
+  const [canaux, setCanaux] = useState([])
+  const [canalCible, setCanalCible] = useState('')
+  const [loadingCanaux, setLoadingCanaux] = useState(false)
 
   const loadList = () => {
     setLoading(true)
@@ -65,6 +69,14 @@ export default function Notifications() {
       .finally(() => setLoadingMembres(false))
   }
 
+  const loadCanaux = () => {
+    setLoadingCanaux(true)
+    api.get('/communication/canaux/')
+      .then(({ data }) => setCanaux(data.results || data || []))
+      .catch(() => setCanaux([]))
+      .finally(() => setLoadingCanaux(false))
+  }
+
   const handleMarquerLue = async (id) => {
     try {
       await api.post(`/communication/notifications/${id}/marquer_lue/`)
@@ -76,6 +88,8 @@ export default function Notifications() {
     const errors = {}
     if (!form.titre) errors.titre = 'Titre requis.'
     if (!form.message) errors.message = 'Message requis.'
+    if (cible === 'selection' && destinataires.length === 0) errors.destinataires = 'Choisissez au moins un membre.'
+    if (cible === 'canal' && !canalCible) errors.canal = 'Choisissez un canal.'
     setFieldErrors(errors)
     if (Object.keys(errors).length > 0) {
       setMessage({ type: 'error', text: 'Veuillez corriger les champs en rouge.' })
@@ -90,15 +104,16 @@ export default function Notifications() {
         message: form.message,
         lien: form.lien || '',
       }
-      if (destinataires.length > 0) {
-        payload.destinataires = destinataires
-      }
+      if (cible === 'selection') payload.destinataires = destinataires
+      else if (cible === 'canal') payload.canal = canalCible
       const { data } = await api.post('/communication/notifications/', payload)
       const detail = data?.detail
-      setMessage({ type: 'success', text: detail || `1 message envoyé à ${destinataires.length} membre(s).` })
+      setMessage({ type: 'success', text: detail || 'Notification envoyée.' })
       setOpenCreate(false)
       setForm({ type_notification: 'info', titre: '', message: '', lien: '' })
+      setCible('tous')
       setDestinataires([])
+      setCanalCible('')
       loadList()
     } catch (err) {
       const data = err.response?.data
@@ -188,42 +203,82 @@ export default function Notifications() {
           <DialogTitle>Créer une notification</DialogTitle>
           <DialogContent>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                Par défaut, la notification est envoyée à tous les membres. Vous pouvez cibler un ou plusieurs destinataires ci‑dessous.
-              </Typography>
               <TextField select fullWidth label="Type" value={form.type_notification} onChange={(e) => setForm((f) => ({ ...f, type_notification: e.target.value }))}>
                 {TYPES.map((t) => <MenuItem key={t.value} value={t.value}>{t.label}</MenuItem>)}
               </TextField>
               <TextField
                 select
                 fullWidth
-                label="Destinataires (optionnel)"
-                value={destinataires}
-                onChange={(e) => setDestinataires(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
-                SelectProps={{
-                  multiple: true,
-                  onOpen: () => { if (membres.length === 0 && !loadingMembres) loadMembres() },
-                  renderValue: (selected) => {
-                    if (!selected || selected.length === 0) return 'Tous les membres'
-                    const labels = membres
-                      .filter((m) => selected.includes(m.id))
-                      .map((m) => m.full_name || `${m.first_name || ''} ${m.last_name || ''}`.trim() || m.email || `Membre #${m.id}`)
-                    return labels.join(', ')
-                  },
+                label="Destinataires"
+                value={cible}
+                onChange={(e) => {
+                  const v = e.target.value
+                  setCible(v)
+                  setFieldErrors((fe) => ({ ...fe, destinataires: undefined, canal: undefined }))
+                  if (v === 'selection' && membres.length === 0 && !loadingMembres) loadMembres()
+                  if (v === 'canal' && canaux.length === 0 && !loadingCanaux) loadCanaux()
                 }}
-                helperText={loadingMembres ? 'Chargement des membres…' : 'Laissez vide pour envoyer à tous les membres.'}
               >
-                {membres.map((m) => {
-                  const label = m.full_name || `${m.first_name || ''} ${m.last_name || ''}`.trim() || m.email || `Membre #${m.id}`
-                  const checked = destinataires.includes(m.id)
-                  return (
-                    <MenuItem key={m.id} value={m.id}>
-                      <Checkbox checked={checked} sx={{ mr: 1 }} />
-                      {label}
-                    </MenuItem>
-                  )
-                })}
+                <MenuItem value="tous">Tous les membres</MenuItem>
+                <MenuItem value="selection">Sélection de membres</MenuItem>
+                <MenuItem value="canal">Membres d'un canal</MenuItem>
               </TextField>
+
+              {cible === 'selection' && (
+                <TextField
+                  select
+                  fullWidth
+                  label="Membres"
+                  value={destinataires}
+                  onChange={(e) => {
+                    setDestinataires(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)
+                    setFieldErrors((fe) => ({ ...fe, destinataires: undefined }))
+                  }}
+                  error={!!fieldErrors.destinataires}
+                  helperText={fieldErrors.destinataires || (loadingMembres ? 'Chargement des membres…' : '')}
+                  SelectProps={{
+                    multiple: true,
+                    renderValue: (selected) => {
+                      if (!selected || selected.length === 0) return ''
+                      const labels = membres
+                        .filter((m) => selected.includes(m.id))
+                        .map((m) => m.full_name || `${m.first_name || ''} ${m.last_name || ''}`.trim() || m.email || `Membre #${m.id}`)
+                      return labels.join(', ')
+                    },
+                  }}
+                >
+                  {membres.map((m) => {
+                    const label = m.full_name || `${m.first_name || ''} ${m.last_name || ''}`.trim() || m.email || `Membre #${m.id}`
+                    const checked = destinataires.includes(m.id)
+                    return (
+                      <MenuItem key={m.id} value={m.id}>
+                        <Checkbox checked={checked} sx={{ mr: 1 }} />
+                        {label}
+                      </MenuItem>
+                    )
+                  })}
+                </TextField>
+              )}
+
+              {cible === 'canal' && (
+                <TextField
+                  select
+                  fullWidth
+                  label="Canal"
+                  value={canalCible}
+                  onChange={(e) => {
+                    setCanalCible(e.target.value)
+                    setFieldErrors((fe) => ({ ...fe, canal: undefined }))
+                  }}
+                  error={!!fieldErrors.canal}
+                  helperText={fieldErrors.canal || (loadingCanaux ? 'Chargement des canaux…' : "Tous les membres de ce canal seront notifiés.")}
+                >
+                  {canaux.map((c) => (
+                    <MenuItem key={c.id} value={c.id}>{c.nom} ({c.nb_membres} membre(s))</MenuItem>
+                  ))}
+                </TextField>
+              )}
+
               <TextField
                 fullWidth
                 label="Titre"

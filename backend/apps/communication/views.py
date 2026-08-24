@@ -402,8 +402,10 @@ class NotificationViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         """
         Créer une notification :
-        - si l'utilisateur est admin / staff : possibilité de cibler des destinataires précis
-          via une liste d'IDs 'destinataires' (si vide/absent, tous les utilisateurs actifs).
+        - si l'utilisateur est admin / staff : possibilité de cibler
+          - tous les membres actifs (aucun destinataire précisé),
+          - une sélection précise via une liste d'IDs 'destinataires',
+          - ou tous les membres d'un canal via 'canal' (id du Canal).
         - sinon, fallback vers le comportement standard (NotificationSerializer).
         """
         if not (request.user.is_staff or getattr(request.user, 'role', None) == 'admin'):
@@ -421,27 +423,31 @@ class NotificationViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Destinataires (liste d'IDs). Si absent/vide -> tous les utilisateurs actifs.
-        brut = request.data.get('destinataires')
-        ids = []
-        if brut:
-            if isinstance(brut, (list, tuple)):
-                ids = brut
-            else:
-                # Peut venir sous forme de string unique ou CSV
-                if isinstance(brut, str):
-                    ids = [p for p in brut.replace(' ', '').split(',') if p]
-                else:
-                    ids = [brut]
-        try:
-            ids = [int(x) for x in ids if str(x).isdigit()]
-        except (TypeError, ValueError):
-            ids = []
-
-        if ids:
-            destinataires_qs = CustomUser.objects.filter(is_active=True, id__in=ids)
+        canal_id = request.data.get('canal')
+        if canal_id:
+            destinataires_qs = CustomUser.objects.filter(is_active=True, canaux__id=canal_id)
         else:
-            destinataires_qs = CustomUser.objects.filter(is_active=True)
+            # Destinataires (liste d'IDs). Si absent/vide -> tous les utilisateurs actifs.
+            brut = request.data.get('destinataires')
+            ids = []
+            if brut:
+                if isinstance(brut, (list, tuple)):
+                    ids = brut
+                else:
+                    # Peut venir sous forme de string unique ou CSV
+                    if isinstance(brut, str):
+                        ids = [p for p in brut.replace(' ', '').split(',') if p]
+                    else:
+                        ids = [brut]
+            try:
+                ids = [int(x) for x in ids if str(x).isdigit()]
+            except (TypeError, ValueError):
+                ids = []
+
+            if ids:
+                destinataires_qs = CustomUser.objects.filter(is_active=True, id__in=ids)
+            else:
+                destinataires_qs = CustomUser.objects.filter(is_active=True)
 
         destinataires = list(destinataires_qs.values_list('id', flat=True))
         if not destinataires:

@@ -60,7 +60,7 @@ class CanalSerializer(serializers.ModelSerializer):
         model = Canal
         # jitsi_room n'est jamais exposé ici : révélé uniquement aux membres via
         # l'action rejoindre() du CanalViewSet.
-        fields = ['id', 'nom', 'description', 'createur', 'createur_nom', 'membres_detail', 'nb_membres', 'date_creation', 'actif']
+        fields = ['id', 'nom', 'description', 'photo', 'createur', 'createur_nom', 'membres_detail', 'nb_membres', 'date_creation', 'actif']
         read_only_fields = ['createur', 'date_creation']
 
 

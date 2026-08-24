@@ -120,6 +120,7 @@ class Canal(models.Model):
 
     nom = models.CharField(max_length=150)
     description = models.TextField(blank=True)
+    photo = models.ImageField(upload_to='canaux/photos/', null=True, blank=True)
     createur = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='canaux_crees')
     membres = models.ManyToManyField(CustomUser, related_name='canaux', blank=True)
     # Nom de salon Jitsi, unique et non devinable : seul le backend le révèle,
