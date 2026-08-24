@@ -1,5 +1,6 @@
 from rest_framework import serializers
-from .models import Message, CategorieForum, SujetForum, ReponseForum, Notification
+from apps.accounts.serializers import UserMinimalSerializer
+from .models import Message, CategorieForum, SujetForum, ReponseForum, Notification, Canal, MessageCanal
 
 
 class MessageSerializer(serializers.ModelSerializer):
@@ -48,3 +49,26 @@ class NotificationSerializer(serializers.ModelSerializer):
         model = Notification
         fields = '__all__'
         read_only_fields = ['date_creation', 'utilisateur', 'date_lecture']
+
+
+class CanalSerializer(serializers.ModelSerializer):
+    createur_nom = serializers.CharField(source='createur.get_full_name', read_only=True)
+    membres_detail = UserMinimalSerializer(source='membres', many=True, read_only=True)
+    nb_membres = serializers.IntegerField(source='membres.count', read_only=True)
+
+    class Meta:
+        model = Canal
+        # jitsi_room n'est jamais exposé ici : révélé uniquement aux membres via
+        # l'action rejoindre() du CanalViewSet.
+        fields = ['id', 'nom', 'description', 'createur', 'createur_nom', 'membres_detail', 'nb_membres', 'date_creation', 'actif']
+        read_only_fields = ['createur', 'date_creation']
+
+
+class MessageCanalSerializer(serializers.ModelSerializer):
+    auteur_nom = serializers.CharField(source='auteur.get_full_name', read_only=True)
+    auteur_photo = serializers.ImageField(source='auteur.photo', read_only=True)
+
+    class Meta:
+        model = MessageCanal
+        fields = ['id', 'canal', 'auteur', 'auteur_nom', 'auteur_photo', 'contenu', 'fichier_joint', 'date_envoi']
+        read_only_fields = ['auteur', 'date_envoi']

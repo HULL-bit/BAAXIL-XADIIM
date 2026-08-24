@@ -1,3 +1,4 @@
+import uuid
 from django.db import models
 from apps.accounts.models import CustomUser
 
@@ -109,3 +110,49 @@ class Notification(models.Model):
 
     def __str__(self):
         return f"{self.utilisateur.get_full_name()} - {self.titre}"
+
+
+class Canal(models.Model):
+    """
+    Canal de communication façon groupe (texte + appel vocal/vidéo Jitsi),
+    visible uniquement par les membres qui y ont été ajoutés par un admin.
+    """
+
+    nom = models.CharField(max_length=150)
+    description = models.TextField(blank=True)
+    createur = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='canaux_crees')
+    membres = models.ManyToManyField(CustomUser, related_name='canaux', blank=True)
+    # Nom de salon Jitsi, unique et non devinable : seul le backend le révèle,
+    # et uniquement aux membres du canal (cf. CanalViewSet.rejoindre).
+    jitsi_room = models.CharField(max_length=64, unique=True, editable=False, blank=True)
+    date_creation = models.DateTimeField(auto_now_add=True)
+    actif = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = 'Canal'
+        verbose_name_plural = 'Canaux'
+        ordering = ['-date_creation']
+
+    def save(self, *args, **kwargs):
+        if not self.jitsi_room:
+            self.jitsi_room = f"ahk-{uuid.uuid4().hex[:24]}"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.nom
+
+
+class MessageCanal(models.Model):
+    canal = models.ForeignKey(Canal, on_delete=models.CASCADE, related_name='messages')
+    auteur = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='messages_canaux')
+    contenu = models.TextField(blank=True)
+    fichier_joint = models.FileField(upload_to='canaux/pieces_jointes/', null=True, blank=True)
+    date_envoi = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Message de canal'
+        verbose_name_plural = 'Messages de canal'
+        ordering = ['date_envoi']
+
+    def __str__(self):
+        return f"{self.auteur.get_full_name()} @ {self.canal.nom}"

@@ -23,6 +23,7 @@ import {
   Mosque as MosqueIcon,
   Message as MessageIcon,
   Notifications as NotifIcon,
+  Tag as CanalIcon,
   VolunteerActivism as SocialIcon,
   LibraryBooks as ConservatoireIcon,
   MenuBook as BibliothequeIcon,
@@ -95,6 +96,7 @@ function buildSectionsGestion(permissions, isSuperAdmin) {
     title: 'Projet gestion communication',
     items: [
       { label: 'Messagerie', path: '/communication/messagerie', icon: <MessageIcon /> },
+      { label: 'Canaux', path: '/communication/canaux', icon: <CanalIcon /> },
       { label: 'Notifications', path: '/communication/notifications', icon: <NotifIcon /> },
     ],
   })
@@ -133,6 +135,7 @@ const sectionsMembre = [
     title: 'Projet gestion communication',
     items: [
       { label: 'Messagerie', path: '/communication/messagerie', icon: <MessageIcon /> },
+      { label: 'Canaux', path: '/communication/canaux', icon: <CanalIcon /> },
       { label: 'Notifications', path: '/communication/notifications', icon: <NotifIcon /> },
     ],
   },

@@ -1,12 +1,16 @@
 from django.db.models import Q
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
-from apps.accounts.permissions import IsSuperAdminCommunication
+from apps.accounts.permissions import IsSuperAdminCommunication, is_super_admin
 
-from .models import Message, CategorieForum, SujetForum, ReponseForum, Notification
-from .serializers import MessageSerializer, CategorieForumSerializer, SujetForumSerializer, ReponseForumSerializer, NotificationSerializer
+from .models import Message, CategorieForum, SujetForum, ReponseForum, Notification, Canal, MessageCanal
+from .serializers import (
+    MessageSerializer, CategorieForumSerializer, SujetForumSerializer, ReponseForumSerializer,
+    NotificationSerializer, CanalSerializer, MessageCanalSerializer,
+)
 
 
 class MessageViewSet(viewsets.ModelViewSet):
@@ -480,3 +484,85 @@ class NotificationViewSet(viewsets.ModelViewSet):
         notif.date_lecture = timezone.now()
         notif.save()
         return Response(NotificationSerializer(notif).data)
+
+
+class CanalViewSet(viewsets.ModelViewSet):
+    """
+    Canaux de communication façon groupe (texte + appel vocal/vidéo Jitsi).
+    Un canal n'est visible que par ses membres ; sa création et la gestion de
+    ses membres restent réservées au Super Admin (même périmètre que les
+    autres écritures du module communication, cf. IsSuperAdminCommunication).
+    """
+    queryset = Canal.objects.none()
+    serializer_class = CanalSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        qs = Canal.objects.filter(actif=True).select_related('createur').prefetch_related('membres')
+        if is_super_admin(user):
+            return qs.order_by('-date_creation')
+        return qs.filter(membres=user).order_by('-date_creation')
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy', 'ajouter_membres', 'retirer_membre']:
+            return [IsSuperAdminCommunication()]
+        return [IsAuthenticated()]
+
+    def perform_create(self, serializer):
+        canal = serializer.save(createur=self.request.user)
+        canal.membres.add(self.request.user)
+
+    def perform_destroy(self, instance):
+        # Soft delete : un canal désactivé disparaît des listes sans effacer
+        # l'historique des messages échangés dedans.
+        instance.actif = False
+        instance.save(update_fields=['actif'])
+
+    @action(detail=True, methods=['post'])
+    def ajouter_membres(self, request, pk=None):
+        canal = self.get_object()
+        from apps.accounts.models import CustomUser
+        ids = request.data.get('membre_ids') or []
+        membres = CustomUser.objects.filter(id__in=ids)
+        canal.membres.add(*membres)
+        return Response(CanalSerializer(canal).data)
+
+    @action(detail=True, methods=['post'])
+    def retirer_membre(self, request, pk=None):
+        canal = self.get_object()
+        membre_id = request.data.get('membre_id')
+        canal.membres.remove(membre_id)
+        return Response(CanalSerializer(canal).data)
+
+    @action(detail=True, methods=['get'])
+    def rejoindre(self, request, pk=None):
+        """Révèle le salon Jitsi du canal — get_queryset() garantit déjà que
+        seul un membre (ou le Super Admin) peut atteindre ce canal."""
+        canal = self.get_object()
+        return Response({'jitsi_domain': 'meet.jit.si', 'jitsi_room': canal.jitsi_room})
+
+
+class MessageCanalViewSet(viewsets.ModelViewSet):
+    queryset = MessageCanal.objects.none()
+    serializer_class = MessageCanalSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        mes_canaux = Canal.objects.all() if is_super_admin(user) else Canal.objects.filter(membres=user)
+        base = MessageCanal.objects.select_related('auteur', 'canal').filter(canal__in=mes_canaux)
+        canal_id = self.request.query_params.get('canal')
+        if canal_id:
+            try:
+                base = base.filter(canal_id=int(canal_id))
+            except (TypeError, ValueError):
+                return MessageCanal.objects.none()
+        return base.order_by('date_envoi')
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        canal = serializer.validated_data.get('canal')
+        if not (is_super_admin(user) or canal.membres.filter(id=user.id).exists()):
+            raise PermissionDenied("Vous n'êtes pas membre de ce canal.")
+        serializer.save(auteur=user)

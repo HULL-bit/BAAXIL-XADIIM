@@ -20,6 +20,7 @@ const MesProgressions = lazy(() => import('./components/culturelle/MesProgressio
 const ValidationsKamil = lazy(() => import('./components/culturelle/ValidationsKamil'))
 const ActivitesReligieuses = lazy(() => import('./components/culturelle/ActivitesReligieuses'))
 const Messagerie = lazy(() => import('./components/communication/Messagerie'))
+const Canaux = lazy(() => import('./components/communication/Canaux'))
 const Notifications = lazy(() => import('./components/communication/Notifications'))
 const ProjetsSociaux = lazy(() => import('./components/sociale/ProjetsSociaux'))
 const Reunions = lazy(() => import('./components/organisation/Reunions'))
@@ -79,6 +80,7 @@ function AppRoutes() {
         <Route path="culturelle/validations" element={<ValidationsKamil />} />
         <Route path="culturelle/activites-religieuses" element={<ActivitesReligieuses />} />
         <Route path="communication/messagerie" element={<Messagerie />} />
+        <Route path="communication/canaux" element={<Canaux />} />
         <Route path="communication/notifications" element={<Notifications />} />
         <Route path="sociale/projets" element={<ProjetsSociaux />} />
         <Route path="organisation/reunions" element={<Reunions />} />
