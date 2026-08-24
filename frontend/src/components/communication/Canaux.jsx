@@ -32,7 +32,7 @@ import {
   Send, Add, Groups, Videocam, Call, Close, PersonRemove, PersonAdd, ArrowBack, Tag, Edit, PhotoCamera,
   Mic, Stop, MoreVert, DeleteOutline, PlaylistRemove,
 } from '@mui/icons-material'
-import api from '../../services/api'
+import api, { clearCache } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import { getMediaUrl } from '../../services/media'
 
@@ -340,6 +340,7 @@ export default function Canaux() {
       setOpenCreate(false)
       setCreateForm({ nom: '', description: '' })
       setCreateMembers([])
+      clearCache('/communication/canaux')
       loadCanaux()
     } catch (err) {
       setCreateError(err.response?.data?.detail || 'Erreur lors de la création du canal.')
@@ -355,6 +356,7 @@ export default function Canaux() {
       const { data } = await api.post(`/communication/canaux/${selected.id}/ajouter_membres/`, { membre_ids: manageAdd.map((m) => m.id) })
       setSelected(data)
       setCanaux((prev) => prev.map((c) => (c.id === data.id ? data : c)))
+      clearCache('/communication/canaux')
       setManageAdd([])
     } catch {
       // ignore, dialog reste ouvert
@@ -369,6 +371,7 @@ export default function Canaux() {
       const { data } = await api.post(`/communication/canaux/${selected.id}/retirer_membre/`, { membre_id: membreId })
       setSelected(data)
       setCanaux((prev) => prev.map((c) => (c.id === data.id ? data : c)))
+      clearCache('/communication/canaux')
     } catch {
       // ignore
     }
@@ -415,6 +418,7 @@ export default function Canaux() {
       }
       setSelected(data)
       setCanaux((prev) => prev.map((c) => (c.id === data.id ? data : c)))
+      clearCache('/communication/canaux')
       setOpenEdit(false)
     } catch (err) {
       setEditError(err.response?.data?.detail || 'Erreur lors de la modification du canal.')
