@@ -1,11 +1,12 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.permissions import IsAuthenticated
 from django.db.models import Sum, Q, Count
 from decimal import Decimal
 from apps.accounts.permissions import (
     IsFinanceWriteAccess,
+    IsAdminRoleOrStaff,
     has_admin_access,
     is_super_admin,
     can_view_finance,
@@ -56,7 +57,10 @@ class CotisationMensuelleViewSet(viewsets.ModelViewSet):
             # generer_assignation_annuelle sur une section entière — deux opérations
             # structurelles réservées au Super Admin (IsFinanceWriteAccess laisserait
             # passer n'importe quel Secrétaire aux Finances de Cellule, trop permissif).
-            return [IsAdminUser()]
+            # IsAdminRoleOrStaff (pas le IsAdminUser brut de DRF, qui ne regarde que
+            # is_staff) : un compte promu Super Admin depuis la page Rôles a role='admin'
+            # mais pas forcément is_staff=True, et doit quand même passer ce contrôle.
+            return [IsAdminRoleOrStaff()]
         return [IsAuthenticated()]
 
     def perform_create(self, serializer):
@@ -359,7 +363,7 @@ class CotisationMensuelleViewSet(viewsets.ModelViewSet):
             'already_existing': already_existing,
         })
 
-    @action(detail=False, methods=['post'], permission_classes=[IsAdminUser])
+    @action(detail=False, methods=['post'], permission_classes=[IsAdminRoleOrStaff])
     def generer_assignation_annuelle(self, request):
         """
         Crée une assignation annuelle pour une Section, répartie à parts égales entre

@@ -566,7 +566,17 @@ def import_membres_excel(request):
             created.append(new_user)
             existing_pairs.add((prenom.lower(), nom.lower(), dahira.id))
 
-    User.objects.bulk_create(created, batch_size=200)
+    try:
+        User.objects.bulk_create(created, batch_size=200)
+    except Exception:
+        # Le cas le plus probable est une collision d'username entre deux imports
+        # simultanés (nom généré à partir du même prénom/nom) — bulk_create annule
+        # tout le lot fautif sans préciser quelle ligne, d'où ce message générique
+        # plutôt qu'une page d'erreur 500 opaque pour l'admin qui importe.
+        return Response(
+            {'detail': "Échec de l'enregistrement en base — un autre import a peut-être eu lieu au même moment. Réessayez."},
+            status=status.HTTP_409_CONFLICT,
+        )
 
     log_action(
         request, user, 'import_excel',
