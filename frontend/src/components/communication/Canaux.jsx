@@ -55,6 +55,8 @@ function loadJitsiScript() {
 function CallDialog({ open, onClose, room, mode, displayName }) {
   const containerRef = useRef(null)
   const apiRef = useRef(null)
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
 
   useEffect(() => {
     if (!open || !room) return
@@ -87,12 +89,12 @@ function CallDialog({ open, onClose, room, mode, displayName }) {
   }, [open, room, mode])
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="lg">
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="lg" fullScreen={isMobile}>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', bgcolor: COLORS.vertFonce, color: 'white' }}>
         {mode === 'audio' ? 'Appel vocal' : 'Appel vidéo'}
         <IconButton onClick={onClose} sx={{ color: 'white' }}><Close /></IconButton>
       </DialogTitle>
-      <DialogContent sx={{ p: 0, height: '70vh', bgcolor: '#000' }}>
+      <DialogContent sx={{ p: 0, height: isMobile ? '100%' : '70vh', bgcolor: '#000' }}>
         <Box ref={containerRef} sx={{ width: '100%', height: '100%' }} />
       </DialogContent>
     </Dialog>
@@ -182,7 +184,9 @@ export default function Canaux() {
   }, [selected, loadMessages])
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    // block: 'nearest' confine le scroll au conteneur de messages (overflowY: auto) —
+    // sans ça, scrollIntoView() fait aussi défiler la page entière sur mobile.
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }, [messages])
 
   useEffect(() => {
@@ -441,23 +445,27 @@ export default function Canaux() {
 
   return (
     <Box sx={{ animation: 'fadeIn 0.4s ease' }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
-        <Box>
-          <Typography variant="h4" sx={{ color: COLORS.vert, fontWeight: 600 }}>Canaux</Typography>
-          <Typography variant="body2" sx={{ color: COLORS.vertFonce }}>
-            Groupes de discussion texte, vocal et vidéo — visibles uniquement par leurs membres.
-          </Typography>
+      {/* Sur mobile, une fois un canal ouvert, l'écran de chat prend toute la place —
+          le titre de page et le bouton "Créer" reviennent quand on revient à la liste. */}
+      {!(isMobile && selected) && (
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
+          <Box>
+            <Typography variant="h4" sx={{ color: COLORS.vert, fontWeight: 600 }}>Canaux</Typography>
+            <Typography variant="body2" sx={{ color: COLORS.vertFonce }}>
+              Groupes de discussion texte, vocal et vidéo — visibles uniquement par leurs membres.
+            </Typography>
+          </Box>
+          {isSuperAdmin && (
+            <Button variant="contained" startIcon={<Add />} onClick={() => setOpenCreate(true)} sx={{ bgcolor: COLORS.vert, '&:hover': { bgcolor: COLORS.vertFonce } }}>
+              Créer un canal
+            </Button>
+          )}
         </Box>
-        {isSuperAdmin && (
-          <Button variant="contained" startIcon={<Add />} onClick={() => setOpenCreate(true)} sx={{ bgcolor: COLORS.vert, '&:hover': { bgcolor: COLORS.vertFonce } }}>
-            Créer un canal
-          </Button>
-        )}
-      </Box>
+      )}
 
       {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
 
-      <Paper sx={{ borderRadius: 2, overflow: 'hidden', borderLeft: `4px solid ${COLORS.or}`, height: { xs: 'calc(100vh - 220px)', md: 'calc(100vh - 250px)' }, display: 'flex' }}>
+      <Paper sx={{ borderRadius: 2, overflow: 'hidden', borderLeft: `4px solid ${COLORS.or}`, height: { xs: selected ? 'calc(100vh - 90px)' : 'calc(100vh - 220px)', md: 'calc(100vh - 250px)' }, display: 'flex' }}>
         {/* Liste des canaux */}
         <Box sx={{ width: { xs: '100%', md: 320 }, borderRight: { md: '1px solid' }, borderColor: 'divider', display: { xs: selected && isMobile ? 'none' : 'flex', md: 'flex' }, flexDirection: 'column' }}>
           <Box sx={{ p: 2, bgcolor: COLORS.vert, color: 'white' }}>
@@ -496,34 +504,34 @@ export default function Canaux() {
             </Box>
           ) : (
             <>
-              <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider', bgcolor: COLORS.vert, color: 'white' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ p: { xs: 1, sm: 2 }, borderBottom: 1, borderColor: 'divider', bgcolor: COLORS.vert, color: 'white' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.25, sm: 1 } }}>
                   {isMobile && (
                     <IconButton size="small" onClick={() => setSelected(null)} sx={{ color: 'white' }}><ArrowBack /></IconButton>
                   )}
-                  <Avatar src={getMediaUrl(selected.photo)} sx={{ bgcolor: `${COLORS.or}`, color: COLORS.vertFonce, width: 36, height: 36 }}>
+                  <Avatar src={getMediaUrl(selected.photo)} sx={{ bgcolor: `${COLORS.or}`, color: COLORS.vertFonce, width: { xs: 32, sm: 36 }, height: { xs: 32, sm: 36 } }}>
                     <Tag fontSize="small" />
                   </Avatar>
                   <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography variant="subtitle1" fontWeight={600} noWrap>{selected.nom}</Typography>
-                    {selected.description && (
+                    <Typography variant="subtitle1" fontWeight={600} noWrap sx={{ fontSize: { xs: '.9rem', sm: '1rem' } }}>{selected.nom}</Typography>
+                    {selected.description && !isMobile && (
                       <Typography variant="caption" sx={{ opacity: 0.85 }} noWrap>{selected.description}</Typography>
                     )}
                   </Box>
                   {isSuperAdmin && (
                     <Tooltip title="Modifier le canal">
-                      <IconButton onClick={handleOpenEdit} sx={{ color: 'white' }}><Edit /></IconButton>
+                      <IconButton size={isMobile ? 'small' : 'medium'} onClick={handleOpenEdit} sx={{ color: 'white' }}><Edit fontSize={isMobile ? 'small' : 'medium'} /></IconButton>
                     </Tooltip>
                   )}
                   <Tooltip title="Appel vocal">
-                    <IconButton onClick={() => startCall('audio')} sx={{ color: 'white' }}><Call /></IconButton>
+                    <IconButton size={isMobile ? 'small' : 'medium'} onClick={() => startCall('audio')} sx={{ color: 'white' }}><Call fontSize={isMobile ? 'small' : 'medium'} /></IconButton>
                   </Tooltip>
                   <Tooltip title="Appel vidéo">
-                    <IconButton onClick={() => startCall('video')} sx={{ color: 'white' }}><Videocam /></IconButton>
+                    <IconButton size={isMobile ? 'small' : 'medium'} onClick={() => startCall('video')} sx={{ color: 'white' }}><Videocam fontSize={isMobile ? 'small' : 'medium'} /></IconButton>
                   </Tooltip>
                 </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                  <AvatarGroup max={6} sx={{ '& .MuiAvatar-root': { width: 26, height: 26, fontSize: '.75rem', border: '2px solid ' + COLORS.vert } }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 1 }, mt: 1, flexWrap: 'wrap' }}>
+                  <AvatarGroup max={isMobile ? 4 : 6} sx={{ '& .MuiAvatar-root': { width: 24, height: 24, fontSize: '.7rem', border: '2px solid ' + COLORS.vert } }}>
                     {(selected.membres_detail || []).map((m) => (
                       <Tooltip key={m.id} title={`${m.first_name} ${m.last_name}`}>
                         <Avatar src={getMediaUrl(m.photo)} sx={{ bgcolor: COLORS.or, color: COLORS.vertFonce }}>
@@ -532,14 +540,30 @@ export default function Canaux() {
                       </Tooltip>
                     ))}
                   </AvatarGroup>
-                  {isSuperAdmin && (
-                    <Button size="small" startIcon={<PersonAdd />} onClick={() => setOpenManage(true)} sx={{ color: 'white', ml: 'auto' }}>
-                      Gérer les membres
-                    </Button>
-                  )}
-                  <Button size="small" startIcon={<PlaylistRemove />} onClick={toggleSelectMode} sx={{ color: 'white' }}>
-                    {selectMode ? 'Annuler' : 'Sélectionner'}
-                  </Button>
+                  <Box sx={{ ml: 'auto', display: 'flex', gap: { xs: 0.25, sm: 1 } }}>
+                    {isSuperAdmin && (
+                      isMobile ? (
+                        <Tooltip title="Gérer les membres">
+                          <IconButton size="small" onClick={() => setOpenManage(true)} sx={{ color: 'white' }}><PersonAdd fontSize="small" /></IconButton>
+                        </Tooltip>
+                      ) : (
+                        <Button size="small" startIcon={<PersonAdd />} onClick={() => setOpenManage(true)} sx={{ color: 'white' }}>
+                          Gérer les membres
+                        </Button>
+                      )
+                    )}
+                    {isMobile ? (
+                      <Tooltip title={selectMode ? 'Annuler la sélection' : 'Sélectionner des messages'}>
+                        <IconButton size="small" onClick={toggleSelectMode} sx={{ color: 'white' }}>
+                          <PlaylistRemove fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    ) : (
+                      <Button size="small" startIcon={<PlaylistRemove />} onClick={toggleSelectMode} sx={{ color: 'white' }}>
+                        {selectMode ? 'Annuler' : 'Sélectionner'}
+                      </Button>
+                    )}
+                  </Box>
                 </Box>
               </Box>
 
@@ -581,7 +605,7 @@ export default function Canaux() {
                               {m.supprime_pour_tous ? (
                                 <Typography variant="body2">Message supprimé</Typography>
                               ) : m.type_message === 'vocal' ? (
-                                <Box component="audio" controls src={getMediaUrl(m.fichier_joint)} sx={{ height: 36, maxWidth: 240 }} />
+                                <Box component="audio" controls src={getMediaUrl(m.fichier_joint)} sx={{ height: 36, maxWidth: { xs: 190, sm: 240 }, width: '100%' }} />
                               ) : (
                                 <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{m.contenu}</Typography>
                               )}
@@ -605,18 +629,18 @@ export default function Canaux() {
 
               {selectMode && selectedMsgCount > 0 && (
                 <Box sx={{ p: 1.5, borderTop: 1, borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1, bgcolor: `${COLORS.vert}10`, flexWrap: 'wrap' }}>
-                  <Typography variant="body2" sx={{ mr: 'auto' }}>{selectedMsgCount} message(s) sélectionné(s)</Typography>
+                  <Typography variant="body2" sx={{ mr: 'auto' }}>{selectedMsgCount} sélectionné(s)</Typography>
                   <Button
                     size="small" startIcon={<DeleteOutline />} disabled={deleting}
                     onClick={() => runDeleteMessages(Object.entries(selectedMsgIds).filter(([, v]) => v).map(([id]) => Number(id)), 'moi')}
                   >
-                    Supprimer pour moi
+                    {isMobile ? 'Pour moi' : 'Supprimer pour moi'}
                   </Button>
                   <Button
                     size="small" color="error" startIcon={<DeleteOutline />} disabled={deleting}
                     onClick={() => runDeleteMessages(Object.entries(selectedMsgIds).filter(([, v]) => v).map(([id]) => Number(id)), 'tous')}
                   >
-                    Supprimer pour tout le monde
+                    {isMobile ? 'Pour tous' : 'Supprimer pour tout le monde'}
                   </Button>
                 </Box>
               )}
@@ -624,11 +648,17 @@ export default function Canaux() {
               <Box sx={{ p: 1.5, borderTop: 1, borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1, bgcolor: 'white' }}>
                 {recording ? (
                   <>
-                    <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', gap: 1, color: 'error.main' }}>
-                      <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: 'error.main', animation: 'pulse 1s infinite' }} />
-                      <Typography variant="body2">Enregistrement… {formatDuree(recordSeconds)}</Typography>
+                    <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', gap: 1, color: 'error.main', minWidth: 0 }}>
+                      <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: 'error.main', animation: 'pulse 1s infinite', flexShrink: 0 }} />
+                      <Typography variant="body2" noWrap>Enregistrement… {formatDuree(recordSeconds)}</Typography>
                     </Box>
-                    <Button size="small" onClick={handleCancelRecording}>Annuler</Button>
+                    {isMobile ? (
+                      <Tooltip title="Annuler">
+                        <IconButton size="small" onClick={handleCancelRecording}><Close fontSize="small" /></IconButton>
+                      </Tooltip>
+                    ) : (
+                      <Button size="small" onClick={handleCancelRecording}>Annuler</Button>
+                    )}
                     <IconButton onClick={handleStopRecording} sx={{ bgcolor: 'error.main', color: 'white', '&:hover': { bgcolor: 'error.dark' } }}>
                       <Stop fontSize="small" />
                     </IconButton>
@@ -680,7 +710,7 @@ export default function Canaux() {
       </Menu>
 
       {/* Création d'un canal */}
-      <Dialog open={openCreate} onClose={() => setOpenCreate(false)} fullWidth maxWidth="sm">
+      <Dialog open={openCreate} onClose={() => setOpenCreate(false)} fullWidth maxWidth="sm" fullScreen={isMobile}>
         <DialogTitle>Créer un canal</DialogTitle>
         <DialogContent>
           {createError && <Alert severity="error" sx={{ mb: 2 }}>{createError}</Alert>}
@@ -717,7 +747,7 @@ export default function Canaux() {
       </Dialog>
 
       {/* Modification du canal (nom, description, photo) */}
-      <Dialog open={openEdit} onClose={() => setOpenEdit(false)} fullWidth maxWidth="sm">
+      <Dialog open={openEdit} onClose={() => setOpenEdit(false)} fullWidth maxWidth="sm" fullScreen={isMobile}>
         <DialogTitle>Modifier le canal</DialogTitle>
         <DialogContent>
           {editError && <Alert severity="error" sx={{ mb: 2 }}>{editError}</Alert>}
@@ -759,7 +789,7 @@ export default function Canaux() {
       </Dialog>
 
       {/* Gestion des membres */}
-      <Dialog open={openManage} onClose={() => setOpenManage(false)} fullWidth maxWidth="sm">
+      <Dialog open={openManage} onClose={() => setOpenManage(false)} fullWidth maxWidth="sm" fullScreen={isMobile}>
         <DialogTitle>Membres de « {selected?.nom} »</DialogTitle>
         <DialogContent>
           <List dense>
