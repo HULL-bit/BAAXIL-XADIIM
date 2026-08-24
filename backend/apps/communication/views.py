@@ -557,7 +557,11 @@ class MessageCanalViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         mes_canaux = Canal.objects.all() if is_super_admin(user) else Canal.objects.filter(membres=user)
-        base = MessageCanal.objects.select_related('auteur', 'canal').filter(canal__in=mes_canaux)
+        base = (
+            MessageCanal.objects.select_related('auteur', 'canal')
+            .filter(canal__in=mes_canaux)
+            .exclude(supprime_pour=user)
+        )
         canal_id = self.request.query_params.get('canal')
         if canal_id:
             try:
@@ -572,3 +576,29 @@ class MessageCanalViewSet(viewsets.ModelViewSet):
         if not (is_super_admin(user) or canal.membres.filter(id=user.id).exists()):
             raise PermissionDenied("Vous n'êtes pas membre de ce canal.")
         serializer.save(auteur=user)
+
+    @action(detail=False, methods=['post'])
+    def supprimer(self, request):
+        """
+        Suppression façon WhatsApp d'un ou plusieurs messages :
+        - mode='moi' : masque les messages choisis pour l'utilisateur courant
+          uniquement (les autres membres du canal continuent de les voir).
+        - mode='tous' : efface le contenu pour tout le monde (laisse une trace
+          « message supprimé ») — réservé à l'auteur du message ou au Super Admin ;
+          les messages non éligibles dans la sélection sont simplement ignorés.
+        """
+        user = request.user
+        ids = request.data.get('ids') or []
+        mode = request.data.get('mode')
+        if mode not in ('moi', 'tous'):
+            return Response({'detail': "mode doit être 'moi' ou 'tous'."}, status=status.HTTP_400_BAD_REQUEST)
+
+        qs = self.get_queryset().filter(id__in=ids)
+        if mode == 'moi':
+            for msg in qs:
+                msg.supprime_pour.add(user)
+            return Response({'detail': f'{qs.count()} message(s) masqué(s) pour vous.', 'count': qs.count()})
+
+        eligible = qs if is_super_admin(user) else qs.filter(auteur=user)
+        n = eligible.update(supprime_pour_tous=True, contenu='', fichier_joint='')
+        return Response({'detail': f'{n} message(s) supprimé(s) pour tout le monde.', 'count': n})

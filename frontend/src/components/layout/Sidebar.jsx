@@ -24,6 +24,7 @@ import {
   Message as MessageIcon,
   Notifications as NotifIcon,
   Tag as CanalIcon,
+  Folder as DocumentsIcon,
   VolunteerActivism as SocialIcon,
   LibraryBooks as ConservatoireIcon,
   MenuBook as BibliothequeIcon,
@@ -101,6 +102,7 @@ function buildSectionsGestion(permissions, isSuperAdmin) {
     ],
   })
   sections.push({ title: 'Projet gestion bibliothèque', items: [{ label: 'Bibliothèque', path: '/bibliotheque', icon: <BibliothequeIcon /> }] })
+  sections.push({ title: 'Projet gestion documents', items: [{ label: 'Documents', path: '/documents', icon: <DocumentsIcon /> }] })
   sections.push({ title: 'Compte', items: [{ label: 'Mon profil', path: '/comptes/profil', icon: <PersonIcon /> }] })
   return sections
 }
@@ -142,6 +144,7 @@ const sectionsMembre = [
   // { title: 'Projet gestion sociale', items: [{ label: 'Sociale', path: '/sociale/projets', icon: <SocialIcon /> }] },
   // { title: 'Projet gestion conservatoire', items: [{ label: 'Conservatoire', path: '/conservatoire', icon: <ConservatoireIcon /> }] },
   { title: 'Projet gestion bibliothèque', items: [{ label: 'Bibliothèque', path: '/bibliotheque', icon: <BibliothequeIcon /> }] },
+  { title: 'Projet gestion documents', items: [{ label: 'Documents', path: '/documents', icon: <DocumentsIcon /> }] },
   // { title: 'Projet gestion scientifique', items: [{ label: 'Cours', path: '/scientifique/cours', icon: <ScientifiqueIcon /> }] },
   // { title: 'Projet gestion organisation', items: [{ label: 'Sections & Dahira', path: '/organisation/sections-dahiras', icon: <OrgIcon /> }, { label: 'Réunions & matériels', path: '/organisation/reunions', icon: <OrgIcon /> }] },
   { title: 'Compte', items: [{ label: 'Mon profil', path: '/comptes/profil', icon: <PersonIcon /> }] },

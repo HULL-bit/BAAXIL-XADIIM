@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'apps.scientifique',
     'apps.organisation',
     'apps.bibliotheque',
+    'apps.documents',
 ]
 
 AUTH_USER_MODEL = 'accounts.CustomUser'
@@ -145,15 +146,24 @@ if USE_S3_MEDIA:
                 'location': os.environ.get('AWS_S3_MEDIA_LOCATION', 'media'),
                 'file_overwrite': False,
                 'querystring_auth': os.environ.get('AWS_QUERYSTRING_AUTH', 'true').lower() == 'true',
+                # Cloudflare R2 (et la plupart des endpoints S3 non-AWS) exigent le
+                # style d'adressage "path" (bucket dans le chemin, pas en sous-domaine)
+                # et SigV4 — sans impact sur un vrai bucket AWS S3.
+                'addressing_style': os.environ.get('AWS_S3_ADDRESSING_STYLE', 'path' if os.environ.get('AWS_S3_ENDPOINT_URL') else 'auto'),
+                'signature_version': 's3v4',
             },
         },
         'staticfiles': {
             'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
         },
     }
-    # URL des médias : bucket ou CDN
+    # URL des médias : indicative seulement — les fichiers eux-mêmes sont servis via
+    # l'URL (signée ou non) que renvoie le backend de stockage (S3Boto3Storage.url()),
+    # pas directement via ce MEDIA_URL.
     if os.environ.get('AWS_S3_CUSTOM_DOMAIN'):
         MEDIA_URL = f"https://{os.environ['AWS_S3_CUSTOM_DOMAIN']}/{os.environ.get('AWS_S3_MEDIA_LOCATION', 'media')}/"
+    elif os.environ.get('AWS_S3_ENDPOINT_URL'):
+        MEDIA_URL = f"{os.environ['AWS_S3_ENDPOINT_URL'].rstrip('/')}/{os.environ.get('AWS_STORAGE_BUCKET_NAME')}/{os.environ.get('AWS_S3_MEDIA_LOCATION', 'media')}/"
     else:
         MEDIA_URL = f"https://{os.environ.get('AWS_STORAGE_BUCKET_NAME')}.s3.{os.environ.get('AWS_S3_REGION_NAME', 'us-east-1')}.amazonaws.com/{os.environ.get('AWS_S3_MEDIA_LOCATION', 'media')}/"
 else:

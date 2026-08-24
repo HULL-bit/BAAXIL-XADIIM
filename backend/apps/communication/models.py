@@ -144,11 +144,23 @@ class Canal(models.Model):
 
 
 class MessageCanal(models.Model):
+    TYPE_CHOICES = [
+        ('texte', 'Texte'),
+        ('vocal', 'Message vocal'),
+    ]
+
     canal = models.ForeignKey(Canal, on_delete=models.CASCADE, related_name='messages')
     auteur = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='messages_canaux')
+    type_message = models.CharField(max_length=10, choices=TYPE_CHOICES, default='texte')
     contenu = models.TextField(blank=True)
     fichier_joint = models.FileField(upload_to='canaux/pieces_jointes/', null=True, blank=True)
+    duree_secondes = models.PositiveIntegerField(null=True, blank=True)
     date_envoi = models.DateTimeField(auto_now_add=True)
+    # Suppression façon WhatsApp : "pour moi" masque le message pour un seul
+    # utilisateur (M2M), "pour tout le monde" laisse une trace vide (tombstone)
+    # visible de tous plutôt qu'un trou silencieux dans la conversation.
+    supprime_pour = models.ManyToManyField(CustomUser, related_name='messages_canal_masques', blank=True)
+    supprime_pour_tous = models.BooleanField(default=False)
 
     class Meta:
         verbose_name = 'Message de canal'

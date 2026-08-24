@@ -70,5 +70,8 @@ class MessageCanalSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = MessageCanal
-        fields = ['id', 'canal', 'auteur', 'auteur_nom', 'auteur_photo', 'contenu', 'fichier_joint', 'date_envoi']
-        read_only_fields = ['auteur', 'date_envoi']
+        fields = [
+            'id', 'canal', 'auteur', 'auteur_nom', 'auteur_photo', 'type_message',
+            'contenu', 'fichier_joint', 'duree_secondes', 'date_envoi', 'supprime_pour_tous',
+        ]
+        read_only_fields = ['auteur', 'date_envoi', 'supprime_pour_tous']

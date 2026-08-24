@@ -22,10 +22,16 @@ import {
   Chip,
   Divider,
   Tooltip,
+  Checkbox,
+  Menu,
+  MenuItem,
   useMediaQuery,
   useTheme,
 } from '@mui/material'
-import { Send, Add, Groups, Videocam, Call, Close, PersonRemove, PersonAdd, ArrowBack, Tag, Edit, PhotoCamera } from '@mui/icons-material'
+import {
+  Send, Add, Groups, Videocam, Call, Close, PersonRemove, PersonAdd, ArrowBack, Tag, Edit, PhotoCamera,
+  Mic, Stop, MoreVert, DeleteOutline, PlaylistRemove,
+} from '@mui/icons-material'
 import api from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import { getMediaUrl } from '../../services/media'
@@ -122,6 +128,21 @@ export default function Canaux() {
 
   const [call, setCall] = useState(null) // { room, mode }
 
+  // Enregistrement d'un message vocal
+  const [recording, setRecording] = useState(false)
+  const [recordSeconds, setRecordSeconds] = useState(0)
+  const mediaRecorderRef = useRef(null)
+  const recordChunksRef = useRef([])
+  const recordTimerRef = useRef(null)
+  const recordStreamRef = useRef(null)
+
+  // Sélection multiple + suppression d'un ou plusieurs messages
+  const [selectMode, setSelectMode] = useState(false)
+  const [selectedMsgIds, setSelectedMsgIds] = useState({})
+  const [msgMenuAnchor, setMsgMenuAnchor] = useState(null)
+  const [msgMenuTarget, setMsgMenuTarget] = useState(null)
+  const [deleting, setDeleting] = useState(false)
+
   const [openEdit, setOpenEdit] = useState(false)
   const [editForm, setEditForm] = useState({ nom: '', description: '' })
   const [editPhotoFile, setEditPhotoFile] = useState(null)
@@ -138,6 +159,12 @@ export default function Canaux() {
   }, [])
 
   useEffect(() => { loadCanaux() }, [loadCanaux])
+
+  useEffect(() => () => {
+    if (recordTimerRef.current) clearInterval(recordTimerRef.current)
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop()
+    recordStreamRef.current?.getTracks().forEach((t) => t.stop())
+  }, [])
 
   const loadMessages = useCallback((canalId) => {
     setLoadingMessages(true)
@@ -182,6 +209,120 @@ export default function Canaux() {
     } finally {
       setSending(false)
     }
+  }
+
+  const stopRecordTimer = () => {
+    if (recordTimerRef.current) {
+      clearInterval(recordTimerRef.current)
+      recordTimerRef.current = null
+    }
+  }
+
+  const handleStartRecording = async () => {
+    if (!selected || recording) return
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      recordStreamRef.current = stream
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : ''
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream)
+      recordChunksRef.current = []
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) recordChunksRef.current.push(e.data) }
+      recorder.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop())
+        const blob = new Blob(recordChunksRef.current, { type: recorder.mimeType || 'audio/webm' })
+        sendVoiceMessage(blob, recordSeconds)
+      }
+      mediaRecorderRef.current = recorder
+      recorder.start()
+      setRecording(true)
+      setRecordSeconds(0)
+      recordTimerRef.current = setInterval(() => setRecordSeconds((s) => s + 1), 1000)
+    } catch (err) {
+      setError("Impossible d'accéder au micro : vérifiez les permissions du navigateur.")
+    }
+  }
+
+  const handleStopRecording = () => {
+    stopRecordTimer()
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop()
+    }
+    setRecording(false)
+  }
+
+  const handleCancelRecording = () => {
+    stopRecordTimer()
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.onstop = () => {
+        recordStreamRef.current?.getTracks().forEach((t) => t.stop())
+      }
+      mediaRecorderRef.current.stop()
+    }
+    setRecording(false)
+    setRecordSeconds(0)
+  }
+
+  const sendVoiceMessage = async (blob, dureeSecondes) => {
+    if (!selected) return
+    setSending(true)
+    try {
+      const fd = new FormData()
+      fd.append('canal', selected.id)
+      fd.append('type_message', 'vocal')
+      fd.append('duree_secondes', String(dureeSecondes))
+      fd.append('fichier_joint', blob, `vocal-${Date.now()}.webm`)
+      const { data } = await api.post('/communication/canal-messages/', fd)
+      setMessages((prev) => [...prev, data])
+    } catch (err) {
+      setError(err.response?.data?.detail || "Erreur lors de l'envoi du message vocal.")
+    } finally {
+      setSending(false)
+      setRecordSeconds(0)
+    }
+  }
+
+  const formatDuree = (s) => {
+    const sec = Math.max(0, Math.floor(s || 0))
+    return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`
+  }
+
+  const toggleSelectMode = () => {
+    setSelectMode((v) => !v)
+    setSelectedMsgIds({})
+  }
+
+  const toggleMsgSelected = (id) => {
+    setSelectedMsgIds((prev) => ({ ...prev, [id]: !prev[id] }))
+  }
+
+  const selectedMsgCount = Object.values(selectedMsgIds).filter(Boolean).length
+
+  const runDeleteMessages = async (ids, mode) => {
+    if (ids.length === 0) return
+    setDeleting(true)
+    try {
+      await api.post('/communication/canal-messages/supprimer/', { ids, mode })
+      if (mode === 'moi') {
+        setMessages((prev) => prev.filter((m) => !ids.includes(m.id)))
+      } else {
+        setMessages((prev) => prev.map((m) => (ids.includes(m.id) ? { ...m, supprime_pour_tous: true, contenu: '', fichier_joint: null } : m)))
+      }
+      setSelectedMsgIds({})
+      setSelectMode(false)
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Erreur lors de la suppression.')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const handleOpenMsgMenu = (e, msg) => {
+    setMsgMenuAnchor(e.currentTarget)
+    setMsgMenuTarget(msg)
+  }
+  const handleCloseMsgMenu = () => {
+    setMsgMenuAnchor(null)
+    setMsgMenuTarget(null)
   }
 
   const handleCreateCanal = async () => {
@@ -392,6 +533,9 @@ export default function Canaux() {
                       Gérer les membres
                     </Button>
                   )}
+                  <Button size="small" startIcon={<PlaylistRemove />} onClick={toggleSelectMode} sx={{ color: 'white' }}>
+                    {selectMode ? 'Annuler' : 'Sélectionner'}
+                  </Button>
                 </Box>
               </Box>
 
@@ -405,26 +549,49 @@ export default function Canaux() {
                 ) : (
                   messages.map((m) => {
                     const isSent = m.auteur === user?.id
+                    const canDeleteForAll = isSent || isSuperAdmin
+                    const isSelected = !!selectedMsgIds[m.id]
                     return (
-                      <Box key={m.id} sx={{ display: 'flex', flexDirection: 'column', alignItems: isSent ? 'flex-end' : 'flex-start' }}>
-                        {!isSent && (
-                          <Typography variant="caption" sx={{ color: COLORS.vertFonce, ml: 1, fontWeight: 600 }}>{m.auteur_nom}</Typography>
+                      <Box
+                        key={m.id}
+                        sx={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-end', gap: 0.5, justifyContent: isSent ? 'flex-end' : 'flex-start' }}
+                      >
+                        {selectMode && (
+                          <Checkbox size="small" checked={isSelected} onChange={() => toggleMsgSelected(m.id)} sx={{ p: 0.5 }} />
                         )}
-                        <Box
-                          sx={{
-                            maxWidth: '75%',
-                            px: 1.5, py: 1,
-                            borderRadius: 2,
-                            bgcolor: isSent ? COLORS.vert : 'white',
-                            color: isSent ? 'white' : 'inherit',
-                            boxShadow: 1,
-                          }}
-                        >
-                          <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{m.contenu}</Typography>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: isSent ? 'flex-end' : 'flex-start', maxWidth: '75%' }}>
+                          {!isSent && (
+                            <Typography variant="caption" sx={{ color: COLORS.vertFonce, ml: 1, fontWeight: 600 }}>{m.auteur_nom}</Typography>
+                          )}
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <Box
+                              sx={{
+                                px: 1.5, py: 1,
+                                borderRadius: 2,
+                                bgcolor: m.supprime_pour_tous ? (isSent ? `${COLORS.vert}55` : '#EDEDED') : (isSent ? COLORS.vert : 'white'),
+                                color: m.supprime_pour_tous ? 'text.secondary' : (isSent ? 'white' : 'inherit'),
+                                boxShadow: m.supprime_pour_tous ? 0 : 1,
+                                fontStyle: m.supprime_pour_tous ? 'italic' : 'normal',
+                              }}
+                            >
+                              {m.supprime_pour_tous ? (
+                                <Typography variant="body2">Message supprimé</Typography>
+                              ) : m.type_message === 'vocal' ? (
+                                <Box component="audio" controls src={getMediaUrl(m.fichier_joint)} sx={{ height: 36, maxWidth: 240 }} />
+                              ) : (
+                                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{m.contenu}</Typography>
+                              )}
+                            </Box>
+                            {!selectMode && !m.supprime_pour_tous && (
+                              <IconButton size="small" onClick={(e) => handleOpenMsgMenu(e, m)} sx={{ p: 0.25 }}>
+                                <MoreVert fontSize="small" />
+                              </IconButton>
+                            )}
+                          </Box>
+                          <Typography variant="caption" sx={{ color: 'text.secondary', mt: 0.25 }}>
+                            {new Date(m.date_envoi).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                          </Typography>
                         </Box>
-                        <Typography variant="caption" sx={{ color: 'text.secondary', mt: 0.25 }}>
-                          {new Date(m.date_envoi).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                        </Typography>
                       </Box>
                     )
                   })
@@ -432,24 +599,81 @@ export default function Canaux() {
                 <div ref={messagesEndRef} />
               </Box>
 
-              <Box sx={{ p: 1.5, borderTop: 1, borderColor: 'divider', display: 'flex', gap: 1, bgcolor: 'white' }}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  placeholder="Écrire un message…"
-                  value={texte}
-                  onChange={(e) => setTexte(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
-                  disabled={sending}
-                />
-                <IconButton onClick={handleSend} disabled={sending || !texte.trim()} sx={{ bgcolor: COLORS.vert, color: 'white', '&:hover': { bgcolor: COLORS.vertFonce } }}>
-                  {sending ? <CircularProgress size={20} color="inherit" /> : <Send fontSize="small" />}
-                </IconButton>
+              {selectMode && selectedMsgCount > 0 && (
+                <Box sx={{ p: 1.5, borderTop: 1, borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1, bgcolor: `${COLORS.vert}10`, flexWrap: 'wrap' }}>
+                  <Typography variant="body2" sx={{ mr: 'auto' }}>{selectedMsgCount} message(s) sélectionné(s)</Typography>
+                  <Button
+                    size="small" startIcon={<DeleteOutline />} disabled={deleting}
+                    onClick={() => runDeleteMessages(Object.entries(selectedMsgIds).filter(([, v]) => v).map(([id]) => Number(id)), 'moi')}
+                  >
+                    Supprimer pour moi
+                  </Button>
+                  <Button
+                    size="small" color="error" startIcon={<DeleteOutline />} disabled={deleting}
+                    onClick={() => runDeleteMessages(Object.entries(selectedMsgIds).filter(([, v]) => v).map(([id]) => Number(id)), 'tous')}
+                  >
+                    Supprimer pour tout le monde
+                  </Button>
+                </Box>
+              )}
+
+              <Box sx={{ p: 1.5, borderTop: 1, borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1, bgcolor: 'white' }}>
+                {recording ? (
+                  <>
+                    <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', gap: 1, color: 'error.main' }}>
+                      <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: 'error.main', animation: 'pulse 1s infinite' }} />
+                      <Typography variant="body2">Enregistrement… {formatDuree(recordSeconds)}</Typography>
+                    </Box>
+                    <Button size="small" onClick={handleCancelRecording}>Annuler</Button>
+                    <IconButton onClick={handleStopRecording} sx={{ bgcolor: 'error.main', color: 'white', '&:hover': { bgcolor: 'error.dark' } }}>
+                      <Stop fontSize="small" />
+                    </IconButton>
+                  </>
+                ) : (
+                  <>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      placeholder="Écrire un message…"
+                      value={texte}
+                      onChange={(e) => setTexte(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
+                      disabled={sending}
+                    />
+                    {texte.trim() ? (
+                      <IconButton onClick={handleSend} disabled={sending} sx={{ bgcolor: COLORS.vert, color: 'white', '&:hover': { bgcolor: COLORS.vertFonce } }}>
+                        {sending ? <CircularProgress size={20} color="inherit" /> : <Send fontSize="small" />}
+                      </IconButton>
+                    ) : (
+                      <Tooltip title="Message vocal">
+                        <IconButton onClick={handleStartRecording} disabled={sending} sx={{ bgcolor: COLORS.vert, color: 'white', '&:hover': { bgcolor: COLORS.vertFonce } }}>
+                          <Mic fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+                  </>
+                )}
               </Box>
             </>
           )}
         </Box>
       </Paper>
+
+      <Menu anchorEl={msgMenuAnchor} open={!!msgMenuAnchor} onClose={handleCloseMsgMenu}>
+        <MenuItem
+          onClick={() => { runDeleteMessages([msgMenuTarget.id], 'moi'); handleCloseMsgMenu() }}
+        >
+          Supprimer pour moi
+        </MenuItem>
+        {msgMenuTarget && (msgMenuTarget.auteur === user?.id || isSuperAdmin) && (
+          <MenuItem
+            onClick={() => { runDeleteMessages([msgMenuTarget.id], 'tous'); handleCloseMsgMenu() }}
+            sx={{ color: 'error.main' }}
+          >
+            Supprimer pour tout le monde
+          </MenuItem>
+        )}
+      </Menu>
 
       {/* Création d'un canal */}
       <Dialog open={openCreate} onClose={() => setOpenCreate(false)} fullWidth maxWidth="sm">
