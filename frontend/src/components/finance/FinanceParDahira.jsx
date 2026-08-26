@@ -25,6 +25,10 @@ import {
   IconButton,
   Autocomplete,
   Avatar,
+  Tabs,
+  Tab,
+  Pagination,
+  InputAdornment,
 } from '@mui/material'
 import { Add, Groups, AccountBalance, MonetizationOn, TrendingUp, HourglassEmpty, Download, PictureAsPdf, Check, Edit, Search, Close } from '@mui/icons-material'
 import api, { clearCache } from '../../services/api'
@@ -32,6 +36,7 @@ import { useAuth } from '../../context/AuthContext'
 import StatutCotisationChip from './StatutCotisationChip'
 
 const COLORS = { vert: '#2DA9E1', vertFonce: '#0F4D71' }
+const COTISATIONS_PAGE_SIZE = 20
 
 const StatCard = ({ title, value, icon, color }) => (
   <Card
@@ -73,9 +78,13 @@ export default function FinanceParDahira() {
   const [filterAnnee, setFilterAnnee] = useState('')
   const [filterStatut, setFilterStatut] = useState('')
   // Cotisations mensuelles et assignations annuelles sont deux choses différentes
-  // (fréquence, périmètre) — filtre dédié pour ne jamais les mélanger par défaut
-  // dans les gros dahiras qui ont les deux en même temps.
-  const [filterType, setFilterType] = useState('')
+  // (fréquence, périmètre) — deux onglets séparés plutôt qu'un filtre "Type" pour ne
+  // jamais les mélanger dans le même tableau, même par accident.
+  const [activeTab, setActiveTab] = useState('mensualite')
+  const [searchInput, setSearchInput] = useState('')
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
   const [membres, setMembres] = useState([])
   const [cotisations, setCotisations] = useState([])
   const [selectedCotisationIds, setSelectedCotisationIds] = useState({})
@@ -189,49 +198,81 @@ export default function FinanceParDahira() {
       ? dahiras.filter((d) => sousSectionIdsForRegroupement.includes(Number(d.sous_section)))
       : dahiras
 
+  const hasFilter = !!(selectedRegroupementId || selectedSectionId || selectedDahiraId)
+
+  // Recherche par nom de membre : anti-rebond pour ne pas relancer une requête à
+  // chaque frappe (même pattern que la recherche de membre dans Barkelou/Messagerie).
   useEffect(() => {
-    const hasFilter = selectedRegroupementId || selectedSectionId || selectedDahiraId
+    const t = setTimeout(() => setSearch(searchInput.trim()), 400)
+    return () => clearTimeout(t)
+  }, [searchInput])
+
+  // Tout changement de filtre ramène à la page 1 — sinon on peut se retrouver sur une
+  // page qui n'existe plus pour le nouveau filtre (ex: page 5 alors qu'il n'y a que 2 pages).
+  useEffect(() => {
+    setPage(1)
+  }, [selectedRegroupementId, selectedSectionId, selectedDahiraId, filterMois, filterAnnee, filterStatut, activeTab, search])
+
+  const buildCotisationParams = (pageOverride) => {
+    const params = {}
+    if (selectedDahiraId) params.dahira = selectedDahiraId
+    else if (selectedSectionId) params.section = selectedSectionId
+    else if (selectedRegroupementId) params.regroupement = selectedRegroupementId
+    params.type_cotisation = activeTab
+    params.page = pageOverride ?? page
+    params.page_size = COTISATIONS_PAGE_SIZE
+    if (filterMois) params.mois = filterMois
+    if (filterAnnee) params.annee = filterAnnee
+    if (filterStatut) params.statut = filterStatut
+    if (search) params.search = search
+    return params
+  }
+
+  const loadCotisations = (pageOverride) => {
+    if (!hasFilter) return
+    setLoading(true)
+    const params = buildCotisationParams(pageOverride)
+    api.get('/finance/cotisations/', { params })
+      .then(({ data }) => {
+        setCotisations(data.results || (Array.isArray(data) ? data : []))
+        setTotalCount(data.count ?? (Array.isArray(data) ? data.length : 0))
+        setSelectedCotisationIds({})
+      })
+      .catch(() => { setCotisations([]); setTotalCount(0) })
+      .finally(() => setLoading(false))
+    api.get('/finance/cotisations/statistiques/', { params })
+      .then(({ data }) => setStats(data))
+      .catch(() => setStats(null))
+  }
+
+  // Effectif du périmètre sélectionné (juste pour le compteur "X membre(s)") : ne
+  // dépend que du périmètre organisationnel, pas des filtres période/statut/recherche
+  // ni de la page — pas besoin de le refetcher à chaque changement de page.
+  useEffect(() => {
     if (!hasFilter) {
       setMembres([])
+      return
+    }
+    const params = { page_size: 500, minimal: 1 }
+    if (selectedDahiraId) params.dahira = selectedDahiraId
+    else if (selectedSectionId) params.section = selectedSectionId
+    else if (selectedRegroupementId) params.regroupement = selectedRegroupementId
+    api.get('/auth/users/', { params })
+      .then(({ data }) => setMembres(data.results || data || []))
+      .catch(() => setMembres([]))
+  }, [selectedRegroupementId, selectedSectionId, selectedDahiraId, canView])
+
+  useEffect(() => {
+    if (!hasFilter) {
       setCotisations([])
+      setTotalCount(0)
       setStats(null)
       setLoading(false)
       return
     }
-    setLoading(true)
-    const params = { page_size: 500 }
-    if (selectedDahiraId) params.dahira = selectedDahiraId
-    else if (selectedSectionId) params.section = selectedSectionId
-    else if (selectedRegroupementId) params.regroupement = selectedRegroupementId
-    const cotisationParams = { ...params }
-    if (filterMois) cotisationParams.mois = filterMois
-    if (filterAnnee) cotisationParams.annee = filterAnnee
-    if (filterStatut) cotisationParams.statut = filterStatut
-    if (filterType) cotisationParams.type_cotisation = filterType
-
-    // Use Promise.allSettled for better error handling and performance
-    // membres n'est utilisé ici que pour son .length/.id (cf. handleSelectAll) : minimal=1
-    // évite de transférer le profil complet de centaines de membres.
-    Promise.allSettled([
-      api.get('/auth/users/', { params: { ...params, minimal: 1 } }).then(({ data }) => data.results || data || []),
-      api.get('/finance/cotisations/', { params: cotisationParams }).then(({ data }) => data.results || data || []),
-    ])
-      .then(([usersResult, cotsResult]) => {
-        setMembres(usersResult.status === 'fulfilled' ? (Array.isArray(usersResult.value) ? usersResult.value : []) : [])
-        setCotisations(cotsResult.status === 'fulfilled' ? (Array.isArray(cotsResult.value) ? cotsResult.value : []) : [])
-        setSelectedCotisationIds({})
-      })
-      .catch(() => {
-        setMembres([])
-        setCotisations([])
-      })
-      .finally(() => setLoading(false))
-
-    api
-      .get('/finance/cotisations/statistiques/', { params: cotisationParams })
-      .then(({ data }) => setStats(data))
-      .catch(() => setStats(null))
-  }, [selectedRegroupementId, selectedSectionId, selectedDahiraId, filterMois, filterAnnee, filterStatut, filterType, canView])
+    loadCotisations()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedRegroupementId, selectedSectionId, selectedDahiraId, filterMois, filterAnnee, filterStatut, activeTab, search, page, canView])
 
   const selectedRegroupement = regroupements.find((r) => r.id === Number(selectedRegroupementId))
   const selectedSection = sections.find((s) => s.id === Number(selectedSectionId))
@@ -263,14 +304,7 @@ export default function FinanceParDahira() {
   // Rafraîchit les cartes de statistiques (montant payé, % payé...) pour qu'elles
   // reflètent immédiatement une validation/correction au lieu de rester sur les anciens chiffres.
   const refreshStats = () => {
-    const statsParams = {}
-    if (selectedDahiraId) statsParams.dahira = selectedDahiraId
-    else if (selectedSectionId) statsParams.section = selectedSectionId
-    else if (selectedRegroupementId) statsParams.regroupement = selectedRegroupementId
-    if (filterMois) statsParams.mois = filterMois
-    if (filterAnnee) statsParams.annee = filterAnnee
-    if (filterStatut) statsParams.statut = filterStatut
-    if (filterType) statsParams.type_cotisation = filterType
+    const statsParams = buildCotisationParams()
     api.get('/finance/cotisations/statistiques/', { params: statsParams }).then(({ data: s }) => setStats(s)).catch(() => {})
     api.get('/finance/cotisations/statistiques/').then(({ data: g }) => setGlobalStats(g)).catch(() => {})
   }
@@ -434,7 +468,6 @@ export default function FinanceParDahira() {
         ? `Regroupement ${selectedRegroupement.nom}`
         : null
 
-  const hasFilter = selectedRegroupementId || selectedSectionId || selectedDahiraId
   const hasScopeInDialog = regInDialog || sectionInDialog || dahiraInDialog
 
   const handleCreateCotisations = async () => {
@@ -508,16 +541,13 @@ export default function FinanceParDahira() {
       clearCache('/auth/users')
       api.get('/finance/cotisations/statistiques/').then(({ data }) => setGlobalStats(data)).catch(() => {})
       if (hasFilter) {
-        const p = { page_size: 500 }
+        if (page !== 1) setPage(1)
+        loadCotisations(1)
+        const p = { page_size: 500, minimal: 1 }
         if (selectedDahiraId) p.dahira = selectedDahiraId
         else if (selectedSectionId) p.section = selectedSectionId
         else if (selectedRegroupementId) p.regroupement = selectedRegroupementId
-        const [cotsRes, usersRes] = await Promise.all([
-          api.get('/finance/cotisations/', { params: p }),
-          api.get('/auth/users/', { params: { ...p, minimal: 1 } }),
-        ])
-        setCotisations(cotsRes.data.results || cotsRes.data || [])
-        setMembres(usersRes.data.results || usersRes.data || [])
+        api.get('/auth/users/', { params: p }).then(({ data }) => setMembres(data.results || data || [])).catch(() => {})
       }
     } catch (err) {
       const errMsg = err.response?.data?.detail || (typeof err.response?.data?.membre === 'object' ? err.response?.data?.membre?.[0] : null) || 'Erreur lors de la création.'
@@ -814,18 +844,6 @@ export default function FinanceParDahira() {
         </TextField>
         <TextField
           select
-          label="Type"
-          value={filterType}
-          onChange={(e) => setFilterType(e.target.value)}
-          size="small"
-          sx={{ minWidth: 170 }}
-        >
-          <MenuItem value="">Mensualités + assignations</MenuItem>
-          <MenuItem value="mensualite">Cotisations mensuelles</MenuItem>
-          <MenuItem value="assignation">Assignations annuelles</MenuItem>
-        </TextField>
-        <TextField
-          select
           label="Statut de paiement"
           value={filterStatut}
           onChange={(e) => setFilterStatut(e.target.value)}
@@ -838,6 +856,21 @@ export default function FinanceParDahira() {
           <MenuItem value="retard">En retard</MenuItem>
           <MenuItem value="annulee">Annulée</MenuItem>
         </TextField>
+        <TextField
+          label="Rechercher un membre"
+          placeholder="Nom, prénom…"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          size="small"
+          sx={{ minWidth: 200 }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <Search fontSize="small" sx={{ color: 'text.disabled' }} />
+              </InputAdornment>
+            ),
+          }}
+        />
         {canAdd && (
           <Button
             variant="contained"
@@ -880,6 +913,15 @@ export default function FinanceParDahira() {
               </Button>
             )}
           </Box>
+          <Tabs
+            value={activeTab}
+            onChange={(_, v) => setActiveTab(v)}
+            sx={{ mb: 1, minHeight: 36, '& .MuiTab-root': { minHeight: 36, textTransform: 'none', fontWeight: 600 } }}
+            TabIndicatorProps={{ sx: { bgcolor: COLORS.vert } }}
+          >
+            <Tab value="mensualite" label="Cotisations mensuelles" sx={{ color: activeTab === 'mensualite' ? COLORS.vert : 'text.secondary' }} />
+            <Tab value="assignation" label="Assignations annuelles" sx={{ color: activeTab === 'assignation' ? COLORS.vert : 'text.secondary' }} />
+          </Tabs>
           <TableContainer component={Paper} sx={{ borderLeft: `4px solid ${COLORS.vert}`, borderRadius: 2 }}>
             <Table size="small">
               <TableHead>
@@ -896,8 +938,7 @@ export default function FinanceParDahira() {
                     </TableCell>
                   )}
                   <TableCell>Membre</TableCell>
-                  <TableCell>Mois / Année</TableCell>
-                  <TableCell>Type</TableCell>
+                  <TableCell>{activeTab === 'assignation' ? 'Année' : 'Mois / Année'}</TableCell>
                   <TableCell>Montant</TableCell>
                   <TableCell>Référence Wave</TableCell>
                   <TableCell>Statut</TableCell>
@@ -906,7 +947,7 @@ export default function FinanceParDahira() {
               </TableHead>
               <TableBody>
                 {cotisations.length === 0 ? (
-                  <TableRow><TableCell colSpan={6 + (canValidate ? 1 : 0) + (canEdit ? 1 : 0)} align="center">Aucune cotisation</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={5 + (canValidate ? 1 : 0) + (canEdit ? 1 : 0)} align="center">Aucune cotisation</TableCell></TableRow>
                 ) : (
                   cotisations.map((c) => (
                     <TableRow key={c.id} hover selected={!!selectedCotisationIds[c.id]}>
@@ -922,7 +963,6 @@ export default function FinanceParDahira() {
                       )}
                       <TableCell>{c.membre_nom || `Membre #${c.membre}`}</TableCell>
                       <TableCell>{c.mois === 0 ? `Année ${c.annee}` : `${c.mois}/${c.annee}`}</TableCell>
-                      <TableCell>{c.type_cotisation === 'assignation' ? 'Assignation' : 'Mensualité'}</TableCell>
                       <TableCell>{Number(c.montant).toLocaleString('fr-FR')} FCFA</TableCell>
                       <TableCell>{c.reference_wave || '—'}</TableCell>
                       <TableCell><StatutCotisationChip statut={c.statut} /></TableCell>
@@ -939,6 +979,17 @@ export default function FinanceParDahira() {
               </TableBody>
             </Table>
           </TableContainer>
+          {totalCount > COTISATIONS_PAGE_SIZE && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+              <Pagination
+                count={Math.ceil(totalCount / COTISATIONS_PAGE_SIZE)}
+                page={page}
+                onChange={(_, v) => setPage(v)}
+                color="primary"
+                size="small"
+              />
+            </Box>
+          )}
         </>
       ) : (
         <Typography color="text.secondary">Choisissez un regroupement, une section ou un dahira pour afficher les membres et cotisations.</Typography>

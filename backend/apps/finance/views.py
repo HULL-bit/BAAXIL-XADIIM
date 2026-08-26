@@ -1,7 +1,8 @@
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Sum, Q, Count
 from decimal import Decimal
 from apps.accounts.permissions import (
@@ -24,7 +25,9 @@ class CotisationMensuelleViewSet(viewsets.ModelViewSet):
     queryset = CotisationMensuelle.objects.all().order_by('-annee', '-mois')
     serializer_class = CotisationMensuelleSerializer
     permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ['membre', 'mois', 'annee', 'statut', 'type_cotisation']
+    search_fields = ['membre__first_name', 'membre__last_name', 'membre__username']
 
     def get_queryset(self):
         # Optimize queries with select_related and only necessary fields
@@ -159,6 +162,13 @@ class CotisationMensuelleViewSet(viewsets.ModelViewSet):
             qs = qs.filter(statut=statut)
         if type_cotisation:
             qs = qs.filter(type_cotisation=type_cotisation)
+        search = request.query_params.get('search')
+        if search:
+            qs = qs.filter(
+                Q(membre__first_name__icontains=search)
+                | Q(membre__last_name__icontains=search)
+                | Q(membre__username__icontains=search)
+            )
 
         total_assignations = qs.count()
 
