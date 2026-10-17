@@ -57,7 +57,7 @@ class UserSerializer(serializers.ModelSerializer):
             'regroupement', 'regroupement_nom', 'section', 'section_nom',
             'sous_section', 'sous_section_label', 'dahira', 'dahira_nom',
             'date_inscription', 'est_actif', 'numero_wave', 'numero_carte', 'numero_cni',
-            'montant_cotisation',
+            'montant_cotisation', 'est_bureau_national',
             'specialite', 'biographie',
             'cotisations_payees', 'chapitres_lus', 'evenements_participes',
             'niveau_acces',

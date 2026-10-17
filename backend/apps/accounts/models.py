@@ -92,6 +92,11 @@ class CustomUser(AbstractUser):
 
     # Assignation financière
     montant_cotisation = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('1000.00'), help_text='Montant de la cotisation mensuelle assignée à ce membre')
+    est_bureau_national = models.BooleanField(
+        default=False,
+        verbose_name='Membre du Bureau National',
+        help_text='Le tarif de cotisation du Bureau National (5 000 F/mois) doit s’appliquer à ce membre. Vérifié par le contrôle qualité.',
+    )
 
     # Champs spécifiques (rôles de gestion)
     specialite = models.CharField(max_length=100, blank=True)

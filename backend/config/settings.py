@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 from datetime import timedelta
 from django.core.exceptions import ImproperlyConfigured
@@ -80,6 +81,12 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Configuration de la base de données
 # Priorité: PostgreSQL via DATABASE_URL si disponible, sinon SQLite local
 DATABASE_URL = os.environ.get('DATABASE_URL')
+
+# Garde-fou : `manage.py test` crée/supprime une base `test_*` sur le serveur ciblé.
+# Le .env local pointe vers la base de production (Render) : en test on force SQLite,
+# sauf opt-in explicite (ALLOW_REMOTE_TEST_DB=1).
+if len(sys.argv) > 1 and sys.argv[1] == 'test' and os.environ.get('ALLOW_REMOTE_TEST_DB') != '1':
+    DATABASE_URL = None
 
 if DATABASE_URL:
     # Utiliser PostgreSQL (production/Render)

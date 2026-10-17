@@ -1,11 +1,13 @@
 """
 Export de la liste des membres en PDF ou Excel (page Gestion des membres).
 Respecte les mêmes filtres que /api/auth/users/ (recherche, sexe, catégorie,
-profession, groupe sanguin, regroupement/section/dahira) pour que l'export
+profession, groupe sanguin, âge, regroupement/section/dahira) pour que l'export
 corresponde à ce que l'admin voit à l'écran.
 """
 from django.contrib.auth import get_user_model
 from django.db.models import Q
+
+from .filtres import filtrer_par_age
 
 User = get_user_model()
 
@@ -37,7 +39,7 @@ def get_membres_queryset(params):
         val = params.get(param)
         if val:
             qs = qs.filter(**{field: val})
-    return qs
+    return filtrer_par_age(qs, params)
 
 
 def _stats(qs):

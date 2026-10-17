@@ -29,6 +29,7 @@ from .permissions import (
     CanViewLogs,
 )
 from .audit import log_connexion, log_action
+from .filtres import filtrer_par_age
 
 User = get_user_model()
 
@@ -219,7 +220,7 @@ class UserList(generics.ListAPIView):
             qs = qs.filter(sous_section_id=sous_section)
         if dahira:
             qs = qs.filter(dahira_id=dahira)
-        return qs
+        return filtrer_par_age(qs, self.request.query_params)
 
 
 class UserDetail(generics.RetrieveUpdateDestroyAPIView):
@@ -255,6 +256,7 @@ class UserDetail(generics.RetrieveUpdateDestroyAPIView):
     # droits via un PATCH sur sa propre fiche).
     _CHAMPS_RESERVES_SUPER_ADMIN = (
         'role', 'regroupement', 'section', 'sous_section', 'dahira', 'is_staff', 'is_superuser',
+        'est_bureau_national',
         'niveau_acces', 'membres_lecture', 'membres_ajout', 'membres_modification', 'membres_suppression',
         'finance_lecture', 'finance_ajout', 'finance_modification', 'finance_suppression', 'finance_validation',
         'synthese_nationale', 'logs_lecture',
@@ -387,6 +389,20 @@ def mes_badges(request):
     qs = AttributionBadge.objects.filter(user=request.user).select_related('badge')
     serializer = AttributionBadgeSerializer(qs, many=True)
     return Response(serializer.data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, CanViewMembers])
+def controle_qualite(request):
+    """
+    Contrôle qualité des fiches membres (lecture seule) : matricules conformes,
+    adultes classés « enfant » (500 F), membres du Bureau National au tarif 5 000 F.
+    Limité au périmètre du demandeur, comme la liste des membres.
+    """
+    from .controle_qualite import rapport_controle_qualite
+
+    qs = scope_filter(User.objects.all(), request.user, 'dahira', 'section')
+    return Response(rapport_controle_qualite(qs))
 
 
 # --- Import Excel des membres (recensement type "TABLEAU RECENSEMENT SECTIONS

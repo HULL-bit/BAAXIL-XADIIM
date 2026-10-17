@@ -29,12 +29,15 @@ import {
   TableRow,
   Paper,
   Tooltip,
+  Switch,
+  FormControlLabel,
 } from '@mui/material'
-import { Add, Edit, Delete, Visibility, VisibilityOff, Search, FilterList, RestartAlt, People, Man, Woman, CheckCircle, Download, PictureAsPdf, UploadFile, ArrowForwardIos } from '@mui/icons-material'
+import { Add, Edit, Delete, Visibility, VisibilityOff, Search, FilterList, RestartAlt, People, Man, Woman, CheckCircle, Download, PictureAsPdf, UploadFile, ArrowForwardIos, FactCheck } from '@mui/icons-material'
 import api from '../../services/api'
 import { getMediaUrl } from '../../services/media'
 import { colors } from '../../styles/theme'
 import { useAuth } from '../../context/AuthContext'
+import ControleQualite from './ControleQualite'
 
 const StatCard = ({ title, value, icon, color }) => (
   <Card
@@ -88,6 +91,7 @@ const initialForm = {
   numero_carte: '',
   numero_cni: '',
   montant_cotisation: '',
+  est_bureau_national: false,
   est_actif: true,
   regroupement: '',
   section: '',
@@ -104,6 +108,9 @@ const initialFilters = {
   groupe_sanguin: '',
   section: '',
   dahira: '',
+  age_min: '',
+  age_max: '',
+  sans_annee: '',
 }
 
 // Champs de filtre persistés dans l'URL (?search=...&sexe=...) pour que le retour
@@ -161,11 +168,17 @@ export default function GestionMembres() {
     if (f.groupe_sanguin) params.groupe_sanguin = f.groupe_sanguin
     if (f.section) params.section = f.section
     if (f.dahira) params.dahira = f.dahira
+    if (f.sans_annee) params.sans_annee = f.sans_annee
+    else {
+      if (f.age_min !== '') params.age_min = f.age_min
+      if (f.age_max !== '') params.age_max = f.age_max
+    }
     return params
   }
 
   const [exportingFormat, setExportingFormat] = useState('')
   const [openImport, setOpenImport] = useState(false)
+  const [openControle, setOpenControle] = useState(false)
   const [importFile, setImportFile] = useState(null)
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState(null)
@@ -337,6 +350,7 @@ export default function GestionMembres() {
       numero_carte: u.numero_carte || '',
       numero_cni: u.numero_cni || '',
       montant_cotisation: u.montant_cotisation ?? '',
+      est_bureau_national: !!u.est_bureau_national,
       est_actif: u.est_actif ?? true,
       regroupement: (typeof u.regroupement === 'object' ? u.regroupement?.id : u.regroupement) ?? '',
       section: (typeof u.section === 'object' ? u.section?.id : u.section) ?? '',
@@ -487,6 +501,9 @@ export default function GestionMembres() {
             >
               Export PDF
             </Button>
+            <Button variant="outlined" startIcon={<FactCheck />} onClick={() => setOpenControle(true)}>
+              Contrôle qualité
+            </Button>
             {canAddMember && (
               <Button variant="outlined" startIcon={<UploadFile />} onClick={() => setOpenImport(true)}>
                 Importer Excel
@@ -546,6 +563,44 @@ export default function GestionMembres() {
                 <TextField select label="Groupe sanguin" value={filters.groupe_sanguin} onChange={(e) => setFilters((f) => ({ ...f, groupe_sanguin: e.target.value }))} size="small" fullWidth>
                   <MenuItem value="">Tous</MenuItem>
                   {GROUPES_SANGUINS.map((g) => <MenuItem key={g} value={g}>{g}</MenuItem>)}
+                </TextField>
+              </Grid>
+              <Grid item xs={6} sm={3} md={2}>
+                <TextField
+                  label="Âge min"
+                  type="number"
+                  value={filters.age_min}
+                  onChange={(e) => setFilters((f) => ({ ...f, age_min: e.target.value, sans_annee: '' }))}
+                  inputProps={{ min: 0, max: 120 }}
+                  size="small"
+                  fullWidth
+                  onKeyDown={(e) => { if (e.key === 'Enter') runSearch(1) }}
+                />
+              </Grid>
+              <Grid item xs={6} sm={3} md={2}>
+                <TextField
+                  label="Âge max"
+                  type="number"
+                  value={filters.age_max}
+                  onChange={(e) => setFilters((f) => ({ ...f, age_max: e.target.value, sans_annee: '' }))}
+                  inputProps={{ min: 0, max: 120 }}
+                  size="small"
+                  fullWidth
+                  onKeyDown={(e) => { if (e.key === 'Enter') runSearch(1) }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <TextField
+                  select
+                  label="Année de naissance"
+                  value={filters.sans_annee}
+                  onChange={(e) => setFilters((f) => ({ ...f, sans_annee: e.target.value, age_min: '', age_max: '' }))}
+                  helperText="Âge calculé d’après l’année de naissance"
+                  size="small"
+                  fullWidth
+                >
+                  <MenuItem value="">Toutes</MenuItem>
+                  <MenuItem value="1">Non renseignée</MenuItem>
                 </TextField>
               </Grid>
               <Grid item xs={6} sm={4} md={2}>
@@ -815,6 +870,12 @@ export default function GestionMembres() {
               onChange={(e) => setForm((f) => ({ ...f, montant_cotisation: e.target.value }))}
               fullWidth
             />
+            {isSuperAdmin && (
+              <FormControlLabel
+                control={<Switch checked={!!form.est_bureau_national} onChange={(e) => setForm((f) => ({ ...f, est_bureau_national: e.target.checked }))} />}
+                label="Membre du Bureau National (tarif 5 000 F/mois)"
+              />
+            )}
             <TextField label="Adresse" value={form.adresse} onChange={(e) => setForm((f) => ({ ...f, adresse: e.target.value }))} multiline rows={2} fullWidth />
             <TextField
               select
@@ -907,6 +968,8 @@ export default function GestionMembres() {
           <Button variant="contained" color="error" onClick={handleDelete} disabled={saving}>{saving ? <CircularProgress size={24} /> : 'Supprimer'}</Button>
         </DialogActions>
       </Dialog>
+
+      <ControleQualite open={openControle} onClose={() => setOpenControle(false)} />
 
       <Dialog open={openImport} onClose={handleCloseImport} maxWidth="sm" fullWidth>
         <DialogTitle>Importer des membres depuis Excel</DialogTitle>
