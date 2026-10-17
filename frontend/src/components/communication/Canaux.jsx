@@ -55,8 +55,6 @@ function loadJitsiScript() {
 function CallDialog({ open, onClose, room, mode, displayName }) {
   const containerRef = useRef(null)
   const apiRef = useRef(null)
-  const theme = useTheme()
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
 
   useEffect(() => {
     if (!open || !room) return
@@ -89,13 +87,13 @@ function CallDialog({ open, onClose, room, mode, displayName }) {
   }, [open, room, mode])
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="lg" fullScreen={isMobile}>
+    <Dialog open={open} onClose={onClose} fullScreen>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', bgcolor: COLORS.vertFonce, color: 'white' }}>
         {mode === 'audio' ? 'Appel vocal' : 'Appel vidéo'}
         <IconButton onClick={onClose} sx={{ color: 'white' }}><Close /></IconButton>
       </DialogTitle>
-      <DialogContent sx={{ p: 0, height: isMobile ? '100%' : '70vh', bgcolor: '#000' }}>
-        <Box ref={containerRef} sx={{ width: '100%', height: '100%' }} />
+      <DialogContent sx={{ p: 0, bgcolor: '#000', position: 'relative', overflow: 'hidden' }}>
+        <Box ref={containerRef} sx={{ position: 'absolute', inset: 0 }} />
       </DialogContent>
     </Dialog>
   )
