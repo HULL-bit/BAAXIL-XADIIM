@@ -5,3 +5,6 @@ class OrganisationConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'apps.organisation'
     verbose_name = 'Organisation'
+
+    def ready(self):
+        from . import signals  # noqa: F401

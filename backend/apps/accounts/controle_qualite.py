@@ -19,6 +19,8 @@ from django.utils import timezone
 # Le matricule est stocké dans le champ « numéro de carte membre » (numero_carte).
 MATRICULE_RE = re.compile(r'^S(\d{2})([A-Z]{2})(\d{2})(\d{3})$')
 EXEMPLE_MATRICULE = 'S01DK01001'
+# Code officiel d'une section (Section.code) : S + 2 chiffres + 2 lettres, ex. S01DK.
+CODE_SECTION_RE = re.compile(r'^S\d{2}[A-Z]{2}$')
 
 AGE_ADULTE = 18
 TARIF_ENFANT = Decimal('500')
@@ -30,6 +32,7 @@ LIBELLES = {
     'matricule_manquant': 'Matricule manquant',
     'matricule_format': f'Matricule au mauvais format (attendu : {EXEMPLE_MATRICULE})',
     'matricule_doublon': 'Matricule utilisé par plusieurs membres',
+    'matricule_hors_reference': 'Matricule ne commençant pas par le code officiel de la section/cellule',
     'matricule_prefixe_section': 'Préfixe de section différent des autres membres de la section',
     'matricule_prefixe_cellule': 'Préfixe de cellule différent des autres membres de la cellule',
     'matricule_prefixe_partage': 'Même préfixe utilisé par plusieurs sections/cellules',
@@ -73,7 +76,13 @@ def _anomalie(membre, type_, severite, detail=''):
 
 
 def _majoritaire(prefixes):
-    return Counter(prefixes).most_common(1)[0][0]
+    return Counter(prefixes).most_common(1)[0][0] if prefixes else None
+
+
+def _ref_section(membre):
+    """Code officiel de la section du membre (S01DK), '' s'il n'est pas encore au format officiel."""
+    code = (membre.section.code or '').upper() if membre.section_id else ''
+    return code if CODE_SECTION_RE.match(code) else ''
 
 
 def controle_matricules(membres):
@@ -113,15 +122,40 @@ def controle_matricules(membres):
     for m, mat in valides:
         p_section, p_cellule = mat[:5], mat[:7]
         prefixes_section[m.section_id].append(p_section)
-        prefixes_cellule[m.dahira_id].append(p_cellule)
+        # Un matricule qui contredit le code officiel de la section ne doit pas fausser
+        # le préfixe « majoritaire » de sa cellule.
+        ref = _ref_section(m)
+        if not ref or mat.startswith(ref):
+            prefixes_cellule[m.dahira_id].append(p_cellule)
         sections_par_prefixe[p_section].add(m.section_id)
         cellules_par_prefixe[p_cellule].add(m.dahira_id)
 
     for m, mat in valides:
         p_section, p_cellule = mat[:5], mat[:7]
+        ref_section = _ref_section(m)
+        ref_cellule = (m.dahira.code or '').upper()
         attendu_section = _majoritaire(prefixes_section[m.section_id])
         attendu_cellule = _majoritaire(prefixes_cellule[m.dahira_id])
-        if p_section != attendu_section:
+        # Codes officiels (Section.code / Dahira.code) : font foi quand ils existent ;
+        # sinon on retombe sur la cohérence interne (préfixe majoritaire).
+        if ref_cellule:
+            if not mat.startswith(ref_cellule):
+                anomalies.append(_anomalie(
+                    m, 'matricule_hors_reference', 'erreur',
+                    f'{mat} : doit commencer par {ref_cellule} (code officiel de la cellule)',
+                ))
+        elif ref_section:
+            if not mat.startswith(ref_section):
+                anomalies.append(_anomalie(
+                    m, 'matricule_hors_reference', 'erreur',
+                    f'{mat} : doit commencer par {ref_section} (code officiel de la section)',
+                ))
+            elif p_cellule != attendu_cellule:
+                anomalies.append(_anomalie(
+                    m, 'matricule_prefixe_cellule', 'erreur',
+                    f'{mat} : préfixe {p_cellule}, la plupart des membres de la cellule ont {attendu_cellule}',
+                ))
+        elif p_section != attendu_section:
             anomalies.append(_anomalie(
                 m, 'matricule_prefixe_section', 'erreur',
                 f'{mat} : préfixe {p_section}, la plupart des membres de la section ont {attendu_section}',
@@ -174,6 +208,25 @@ def controle_bureau_national(membres):
     return anomalies
 
 
+def etat_references(membres):
+    """Sections et cellules (avec des membres) qui n'ont pas encore de code officiel :
+    leurs matricules ne peuvent être vérifiés que par cohérence interne."""
+    sections = {}
+    cellules = {}
+    for m in membres:
+        if m.section_id and not CODE_SECTION_RE.match((m.section.code or '').upper()):
+            sections[m.section.nom] = sections.get(m.section.nom, 0) + 1
+        if m.dahira_id:
+            c = cellules.setdefault(m.dahira_id, {'dahira': m.dahira.nom, 'section': m.section.nom if m.section_id else '', 'membres': 0, 'code': m.dahira.code})
+            c['membres'] += 1
+    sans_code = sorted((c for c in cellules.values() if not c['code']), key=lambda c: (c['section'], c['dahira']))
+    return {
+        'sections_sans_code_officiel': sorted(sections),
+        'cellules_avec_code': sum(1 for c in cellules.values() if c['code']),
+        'cellules_sans_code': sans_code,
+    }
+
+
 def _bloc(libelle, anomalies):
     return {
         'libelle': libelle,
@@ -191,6 +244,7 @@ def rapport_controle_qualite(base_qs, annee=None):
         'annee_reference': annee,
         'total_membres': len(membres),
         'libelles': LIBELLES,
+        'references': etat_references(membres),
         'controles': {
             'matricule': _bloc('Matricules conformes (format S01DK01001)', controle_matricules(membres)),
             'enfants': _bloc('Adultes classés « enfant » (500 F)', controle_enfants(membres, annee)),

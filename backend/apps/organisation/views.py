@@ -1,4 +1,4 @@
-from django.db.models import Sum
+from django.db.models import Q, Sum
 
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
@@ -201,10 +201,31 @@ class MaterielViewSet(viewsets.ModelViewSet):
         return Response(data)
 
 
+def _refuser_si_utilise(*, membres=None, enfants=None, libelle_enfants=''):
+    """Garde-fou de suppression : la cascade Django effacerait les dahiras et détacherait
+    les membres sans prévenir. On refuse tant que quelque chose y est rattaché."""
+    from django.contrib.auth import get_user_model
+    from rest_framework.exceptions import ValidationError
+
+    if membres is not None:
+        n = get_user_model().objects.filter(membres).count()
+        if n:
+            raise ValidationError(f"Suppression impossible : {n} membre(s) y sont rattachés. Déplacez-les d'abord.")
+    if enfants is not None and enfants.exists():
+        raise ValidationError(f"Suppression impossible : {libelle_enfants} y sont encore rattaché(e)s. Supprimez-les d'abord.")
+
+
 class RegroupementViewSet(viewsets.ModelViewSet):
     queryset = Regroupement.objects.all().order_by('nom')
     serializer_class = RegroupementSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = None  # liste de structure complète : les écrans lisent tout le tableau
+
+    def perform_destroy(self, instance):
+        _refuser_si_utilise(
+            membres=Q(regroupement=instance), enfants=instance.sections.all(), libelle_enfants='des sections',
+        )
+        instance.delete()
 
     def get_permissions(self):
         # Lecture publique (structure visible par tous), écriture réservée aux responsables
@@ -216,9 +237,18 @@ class RegroupementViewSet(viewsets.ModelViewSet):
 
 
 class SectionViewSet(viewsets.ModelViewSet):
-    queryset = Section.objects.select_related('regroupement').all().order_by('nom')
+    # Ordre officiel (S01DK, S02KL…) plutôt que par nom : renommer une section ne la déplace plus.
+    queryset = Section.objects.select_related('regroupement').all().order_by('code', 'nom')
     serializer_class = SectionSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = None
+
+    def perform_destroy(self, instance):
+        _refuser_si_utilise(
+            membres=Q(section=instance) | Q(dahira__sous_section__section=instance),
+            enfants=Dahira.objects.filter(sous_section__section=instance), libelle_enfants='des dahiras',
+        )
+        instance.delete()
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
@@ -232,6 +262,7 @@ class SousSectionViewSet(viewsets.ModelViewSet):
     queryset = SousSection.objects.select_related('section', 'section__regroupement').all()
     serializer_class = SousSectionSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = None
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
@@ -245,6 +276,11 @@ class DahiraViewSet(viewsets.ModelViewSet):
     queryset = Dahira.objects.select_related('sous_section', 'sous_section__section').all().order_by('nom')
     serializer_class = DahiraSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = None
+
+    def perform_destroy(self, instance):
+        _refuser_si_utilise(membres=Q(dahira=instance))
+        instance.delete()
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:

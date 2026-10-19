@@ -82,6 +82,16 @@ export default function ControleQualite({ open, onClose }) {
               })}
             </Tabs>
             <Typography variant="subtitle2" sx={{ mb: 1 }}>{bloc.libelle}</Typography>
+            {onglet === 'matricule' && rapport.references && (
+              <Alert severity={rapport.references.cellules_sans_code.length ? 'info' : 'success'} sx={{ mb: 1.5 }}>
+                {rapport.references.cellules_avec_code} cellule(s) avec code officiel (ex. S01DK01).
+                {rapport.references.cellules_sans_code.length > 0 && (
+                  <> {rapport.references.cellules_sans_code.length} cellule(s) sans code officiel : leurs matricules ne sont vérifiés que par cohérence entre membres
+                  ({rapport.references.cellules_sans_code.slice(0, 5).map((c) => `${c.dahira} (${c.membres})`).join(', ')}
+                  {rapport.references.cellules_sans_code.length > 5 ? '…' : ''}).</>
+                )}
+              </Alert>
+            )}
             {bloc.total_anomalies === 0 ? (
               <Alert severity="success">Aucune anomalie.</Alert>
             ) : (

@@ -318,12 +318,21 @@ class Dahira(models.Model):
         default=False,
         help_text="Cellule pilote : seules ces cellules sont visibles par les rôles nationaux/section durant la phase pilote.",
     )
+    code = models.CharField(
+        max_length=12,
+        blank=True,
+        db_index=True,
+        help_text="Code officiel de la cellule (ex. S01DK01) : code de la section + n° de cellule. Préfixe des matricules de ses membres (ex. S01DK01001).",
+    )
 
     class Meta:
         verbose_name = "Dahira"
         verbose_name_plural = "Dahiras"
         unique_together = ["sous_section", "nom"]
         ordering = ["nom"]
+        constraints = [
+            models.UniqueConstraint(fields=["code"], condition=~models.Q(code=""), name="dahira_code_unique_si_renseigne"),
+        ]
 
     def __str__(self):
         return f"{self.nom} ({self.sous_section})"
